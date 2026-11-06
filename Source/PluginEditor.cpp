@@ -1,32 +1,12 @@
 #include "PluginEditor.h"
+#include "model/EnsembleSession.h"
+#include "ui/BasslineEditor.h"
+#include "ui/DrumEditor.h"
+#include "ui/EnsembleEditor.h"
 #include "ui/LeadEditor.h"
+#include "ui/MultiEditor.h"
 
 using namespace ui;
-
-namespace
-{
-// Shown for engines whose editor isn't built yet. The librarian, send/receive
-// and .syx files already work for these patches.
-class PlaceholderEditor : public juce::Component
-{
-public:
-    explicit PlaceholderEditor (sid::Engine e) : engine (e) {}
-    void paint (juce::Graphics& g) override
-    {
-        g.setColour (colours::dimText);
-        g.setFont (font (16.0f, true));
-        auto r = getLocalBounds().withSizeKeepingCentre (560, 90);
-        g.drawText (juce::String (sid::engineName (engine)) + " engine patch", r.removeFromTop (30), juce::Justification::centred);
-        g.setFont (font (13.0f));
-        g.drawFittedText ("The " + juce::String (sid::engineName (engine))
-                              + " editor isn't built yet. You can still rename, store, fetch, send and save this patch.",
-                          r, juce::Justification::centred, 3);
-    }
-
-private:
-    sid::Engine engine;
-};
-} // namespace
 
 SidControlEditor::SidControlEditor (SidControlProcessor& p)
     : AudioProcessorEditor (p), proc (p), session (p.session), connectionBar (p.session), library (p.session)
@@ -55,6 +35,13 @@ SidControlEditor::SidControlEditor (SidControlProcessor& p)
     sourceLabel.setColour (juce::Label::textColourId, colours::dimText);
     addAndMakeVisible (sourceLabel);
 
+    ensembleButton.setClickingTogglesState (true);
+    ensembleButton.setTooltip ("Show the ensemble editor (patch per SID core, MIDI channels, splits, clock)");
+    ensembleButton.onClick = [this] { showEnsemble (ensembleButton.getToggleState()); };
+    addAndMakeVisible (ensembleButton);
+    ensembleEditor = std::make_unique<EnsembleEditor> (session.getEnsemble());
+    addChildComponent (*ensembleEditor);
+
     newButton.onClick = [this] { showNewPatchMenu(); };
     openButton.onClick = [this] { library.openSyx(); };
     savePatchButton.onClick = [this] { savePatch(); };
@@ -76,7 +63,7 @@ SidControlEditor::SidControlEditor (SidControlProcessor& p)
     statusChanged();
 
     setResizable (true, true);
-    setResizeLimits (1180, 700, 2400, 1600);
+    setResizeLimits (1260, 700, 2400, 1600);
     setSize (proc.editorWidth, proc.editorHeight);
     startTimerHz (10);
 
@@ -107,15 +94,49 @@ void SidControlEditor::writeSnapshots (const juce::File& dir)
         out.truncate();
         juce::PNGImageFormat().writeImageToStream (img, out);
     };
-    if (auto* lead = dynamic_cast<LeadEditor*> (engineEditor.get()))
+    auto saveTabs = [&save] (EngineEditor& ed, const juce::String& prefix)
     {
-        auto& tabs = lead->getTabs();
+        auto& tabs = ed.getTabs();
         for (int i = 0; i < tabs.getNumTabs(); ++i)
         {
             tabs.setCurrentTabIndex (i);
-            save (juce::String (i) + "_" + tabs.getTabNames()[i].removeCharacters (" &"));
+            save (prefix + juce::String (i) + "_" + tabs.getTabNames()[i].removeCharacters (" &()"));
         }
         tabs.setCurrentTabIndex (0);
+    };
+
+    if (juce::SystemStats::getEnvironmentVariable ("SIDCONTROL_SNAPSHOT_ALL", {}).isNotEmpty())
+    {
+        session.setLive (false);
+        for (int e = 0; e < 4; ++e)
+        {
+            session.loadIntoEditor (sid::Patch::makeInit ((sid::Engine) e));
+            if (auto* ed = dynamic_cast<EngineEditor*> (engineEditor.get()))
+                saveTabs (*ed, juce::String (sid::engineName ((sid::Engine) e)) + "_");
+        }
+        // A plausible ensemble: SID1 on channel 1..6, splits over the keyboard.
+        sid::Ensemble ens;
+        for (int sidIdx = 0; sidIdx < 4; ++sidIdx)
+        {
+            const int b = sidIdx * 0x40;
+            ens.setByte (b + 2, 0x02);
+            ens.setByte (b + 5, 120);
+            ens.setByte (b + 9, 0x10);
+            ens.setByte (b + 11, 0xf0);
+            for (int i = 0; i < 6; ++i)
+            {
+                ens.setByte (b + 0x10 + 8 * i, (uint8_t) i);
+                ens.setByte (b + 0x12 + 8 * i, 0x7f);
+                ens.setByte (b + 0x13 + 8 * i, 0x40);
+            }
+        }
+        session.getEnsemble().replace (ens, true);
+        showEnsemble (true);
+        saveTabs (static_cast<EnsembleEditor&> (*ensembleEditor).getPages(), "Ensemble_");
+    }
+    else if (auto* ed = dynamic_cast<EngineEditor*> (engineEditor.get()))
+    {
+        saveTabs (*ed, {});
     }
     else
     {
@@ -129,6 +150,7 @@ SidControlEditor::~SidControlEditor()
 {
     session.removeListener (this);
     engineEditor.reset();
+    ensembleEditor.reset();
     juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
 }
@@ -141,12 +163,24 @@ void SidControlEditor::rebuildEngineEditor()
     shownEngine = e;
     hasEngineEditor = true;
 
-    if (e == sid::Engine::Lead)
-        engineEditor = std::make_unique<LeadEditor> (session);
-    else
-        engineEditor = std::make_unique<PlaceholderEditor> (e);
-    addAndMakeVisible (*engineEditor);
+    switch (e)
+    {
+        case sid::Engine::Lead:     engineEditor = std::make_unique<LeadEditor> (session); break;
+        case sid::Engine::Bassline: engineEditor = std::make_unique<BasslineEditor> (session); break;
+        case sid::Engine::Drum:     engineEditor = std::make_unique<DrumEditor> (session); break;
+        case sid::Engine::Multi:    engineEditor = std::make_unique<MultiEditor> (session); break;
+    }
+    addChildComponent (*engineEditor);
+    engineEditor->setVisible (! ensembleButton.getToggleState());
     resized();
+}
+
+void SidControlEditor::showEnsemble (bool show)
+{
+    ensembleButton.setToggleState (show, juce::dontSendNotification);
+    ensembleEditor->setVisible (show);
+    if (engineEditor != nullptr)
+        engineEditor->setVisible (! show);
 }
 
 void SidControlEditor::refreshHeader()
@@ -276,8 +310,12 @@ void SidControlEditor::resized()
     openButton.setBounds (header.removeFromRight (84).reduced (0, 2));
     header.removeFromRight (6);
     newButton.setBounds (header.removeFromRight (100).reduced (0, 2));
+    header.removeFromRight (16);
+    ensembleButton.setBounds (header.removeFromRight (90).reduced (0, 2));
     main.removeFromTop (6);
 
     if (engineEditor != nullptr)
         engineEditor->setBounds (main);
+    if (ensembleEditor != nullptr)
+        ensembleEditor->setBounds (main);
 }

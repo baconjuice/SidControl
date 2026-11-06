@@ -49,7 +49,11 @@ bool SidDevice::openOutput (const juce::String& identifier)
     if (identifier.isEmpty())
         return false;
 
-    output = juce::MidiOutput::openDevice (identifier);
+    auto opened = juce::MidiOutput::openDevice (identifier);
+    {
+        const juce::SpinLock::ScopedLockType lock (outputLock);
+        output = std::move (opened);
+    }
     if (output == nullptr)
     {
         log ("Could not open MIDI output");
@@ -72,7 +76,12 @@ void SidDevice::closeInput()
 
 void SidDevice::closeOutput()
 {
-    output.reset();
+    std::unique_ptr<juce::MidiOutput> old;
+    {
+        const juce::SpinLock::ScopedLockType lock (outputLock);
+        old = std::move (output);
+    }
+    old.reset();
     outputId = {};
 }
 
@@ -92,14 +101,45 @@ void SidDevice::send (const sysex::Bytes& message)
             recentlySentDumps.pop_front();
     }
 
-    output->sendMessageNow (juce::MidiMessage (message.data(), (int) message.size()));
+    {
+        const juce::SpinLock::ScopedLockType lock (outputLock);
+        if (output != nullptr)
+            output->sendMessageNow (juce::MidiMessage (message.data(), (int) message.size()));
+    }
     listeners.call ([] (Listener& l) { l.sidActivity (true); });
 }
 
 void SidDevice::sendMidi (const juce::MidiMessage& m)
 {
+    const juce::SpinLock::ScopedLockType lock (outputLock);
     if (output != nullptr)
         output->sendMessageNow (m);
+}
+
+void SidDevice::forwardMidi (const juce::MidiBuffer& buffer)
+{
+    if (buffer.isEmpty())
+        return;
+
+    const int channel = keyboardChannel.load();
+    bool sent = false;
+    {
+        const juce::SpinLock::ScopedLockType lock (outputLock);
+        if (output == nullptr)
+            return;
+        for (const auto meta : buffer)
+        {
+            auto m = meta.getMessage();
+            if (m.isSysEx() || m.isActiveSense() || m.isMetaEvent())
+                continue;
+            if (channel > 0 && m.getChannel() > 0)
+                m.setChannel (channel);
+            output->sendMessageNow (m);
+            sent = true;
+        }
+    }
+    if (sent)
+        lastOutputActivity = juce::Time::getMillisecondCounter();
 }
 
 void SidDevice::queueParameter (uint16_t addr, uint8_t value, uint8_t writeOption)
@@ -181,6 +221,9 @@ void SidDevice::finishJob (const Result& r)
 // ---------------------------------------------------------------------------
 void SidDevice::handleIncomingMidiMessage (juce::MidiInput*, const juce::MidiMessage& m)
 {
+    if (! m.isActiveSense())
+        lastInputActivity = juce::Time::getMillisecondCounter();
+
     if (! m.isSysEx())
         return;
 
@@ -198,6 +241,8 @@ bool SidDevice::isOwnEcho (const sysex::Message& m) const
 {
     // A merger echo arrives right after we sent it; the same patch coming
     // back later is a genuine reply.
+    if (m.kind != sid::sysex::Message::Kind::PatchDump)
+        return false;
     const auto now = juce::Time::getMillisecondCounter();
     for (auto& [patch, sentAt] : recentlySentDumps)
         if (patch == m.patch && now - sentAt < 1000)
@@ -230,7 +275,8 @@ void SidDevice::handleSysEx (const std::vector<uint8_t>& bytes)
             startNextJob();
             return;
         }
-        if (expect == Expect::Dump && msg->kind == Kind::PatchDump && ! isOwnEcho (*msg))
+        const bool isDump = msg->kind == Kind::PatchDump || msg->kind == Kind::EnsembleDump;
+        if (expect == Expect::Dump && isDump && ! isOwnEcho (*msg))
         {
             r.ok = msg->checksumOk;
             if (! r.ok) r.error = "Received dump with bad checksum";
@@ -247,7 +293,7 @@ void SidDevice::handleSysEx (const std::vector<uint8_t>& bytes)
         }
     }
 
-    if (msg->kind == Kind::PatchDump && ! isOwnEcho (*msg))
+    if ((msg->kind == Kind::PatchDump || msg->kind == Kind::EnsembleDump) && ! isOwnEcho (*msg))
     {
         if (msg->checksumOk)
             listeners.call ([&] (Listener& l) { l.sidUnsolicitedDump (*msg); });
@@ -271,7 +317,8 @@ void SidDevice::timerCallback()
         const auto [addr, wopt] = it->first;
         const auto value = it->second;
         pendingParams.erase (it);
-        send (sysex::parameterWrite (deviceNumber, addr, value, wopt));
+        send (wopt == kEnsembleKey ? sysex::ensembleParameterWrite (deviceNumber, addr, value)
+                                   : sysex::parameterWrite (deviceNumber, addr, value, wopt));
         lastParamSendAt = juce::Time::getMillisecondCounter();
     }
 

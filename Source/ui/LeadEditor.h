@@ -1,20 +1,14 @@
 #pragma once
 
-#include "ParamControls.h"
+#include "EditorCommon.h"
+#include "model/Session.h"
 
 namespace ui
 {
 // Full editor for the Lead engine, organised in tabs.
-class LeadEditor : public juce::Component
+class LeadEditor : public EngineEditor
 {
 public:
     explicit LeadEditor (Session& s);
-    ~LeadEditor() override;
-
-    void resized() override;
-    juce::TabbedComponent& getTabs() { return tabs; }
-
-private:
-    juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
 };
 } // namespace ui

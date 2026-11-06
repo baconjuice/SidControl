@@ -1,4 +1,5 @@
 #include "Session.h"
+#include "EnsembleSession.h"
 
 #include <cstring>
 
@@ -18,6 +19,24 @@ constexpr int kWriteTimeoutMs = 4000; // BankStick (EEPROM) writes are slow
 Session::Session (SidDevice& d) : device (d)
 {
     device.addListener (this);
+    ensemble = std::make_unique<EnsembleSession> (*this);
+}
+
+void Session::fireReplaced()
+{
+    listeners.call ([] (Listener& l) { l.editReplaced(); });
+    notifyReplaced();
+}
+
+void Session::fireChanged (const std::vector<uint16_t>& addresses)
+{
+    listeners.call ([&] (Listener& l) { l.editChanged (addresses); });
+    notifyChanged (addresses);
+}
+
+int Session::defaultRaw (const ParamDef& p) const
+{
+    return Patch::makeInit (engine()).getRaw (p);
 }
 
 Session::~Session()
@@ -47,7 +66,7 @@ void Session::setParam (const ParamDef& p, int raw, uint8_t writeOption)
         if (live)
             device.queueParameter (addr, value, links.empty() ? sysex::wopt::None : writeOption);
     }
-    listeners.call ([&] (Listener& l) { l.editChanged (all); });
+    fireChanged (all);
 }
 
 void Session::setName (const juce::String& name)
@@ -65,14 +84,14 @@ void Session::setName (const juce::String& name)
         }
     }
     if (! changed.empty())
-        listeners.call ([&] (Listener& l) { l.editChanged (changed); });
+        fireChanged (changed);
 }
 
 void Session::loadIntoEditor (const Patch& p, int fromSlot)
 {
     editPatch = p;
     sourceSlot = fromSlot;
-    listeners.call ([] (Listener& l) { l.editReplaced(); });
+    fireReplaced();
     if (live)
         sendEditBuffer();
 }
@@ -107,7 +126,7 @@ void Session::fetchEditBuffer()
                         {
                             s->editPatch = r.reply->patch;
                             s->sourceSlot = -1;
-                            s->listeners.call ([] (Listener& l) { l.editReplaced(); });
+                            s->fireReplaced();
                             s->setStatus ("Received edit buffer: " + juce::String (s->editPatch.name()));
                         }
                         else
@@ -130,7 +149,12 @@ void Session::ping()
                         if (s == nullptr) return;
                         if (! r.ok)
                         {
-                            s->setStatus ("No answer from MIDIbox SID: " + r.error);
+                            if (! s->device.isOutputOpen() || ! s->device.isInputOpen())
+                                s->setStatus ("Select both MIDI In and MIDI Out first");
+                            else
+                                s->setStatus ("No answer from MIDIbox SID. Check: MIDI Out goes to the SID's MIDI IN "
+                                              "and the SID's MIDI OUT comes back to MIDI In, the ports and device number match, "
+                                              "and the SID is running (LCD shows a patch).");
                             return;
                         }
                         juce::String sids;
@@ -407,6 +431,7 @@ juce::ValueTree Session::toValueTree() const
     v.setProperty ("midiOut", device.getOutputId(), nullptr);
     v.setProperty ("deviceNumber", (int) device.getDeviceNumber(), nullptr);
     v.setProperty ("live", live, nullptr);
+    v.setProperty ("keyboardChannel", device.getKeyboardChannel(), nullptr);
     v.setProperty ("bank", bankNumber, nullptr);
     v.setProperty ("sourceSlot", sourceSlot, nullptr);
     v.setProperty ("edit", juce::Base64::toBase64 (editPatch.data.data(), editPatch.data.size()), nullptr);
@@ -421,6 +446,7 @@ juce::ValueTree Session::toValueTree() const
         b.appendChild (s, nullptr);
     }
     v.appendChild (b, nullptr);
+    v.appendChild (ensemble->toValueTree(), nullptr);
     return v;
 }
 
@@ -440,6 +466,7 @@ void Session::fromValueTree (const juce::ValueTree& v)
 
     device.setDeviceNumber (v.getProperty ("deviceNumber", 0));
     live = v.getProperty ("live", true);
+    device.setKeyboardChannel (v.getProperty ("keyboardChannel", 0));
     bankNumber = juce::jlimit (0, 7, (int) v.getProperty ("bank", 0));
     sourceSlot = v.getProperty ("sourceSlot", -1);
 
@@ -455,12 +482,14 @@ void Session::fromValueTree (const juce::ValueTree& v)
             slots[(size_t) i] = p;
     }
 
+    ensemble->fromValueTree (v.getChildWithName ("Ensemble"));
+
     if (auto in = v.getProperty ("midiIn").toString(); in.isNotEmpty())
         device.openInput (in);
     if (auto out = v.getProperty ("midiOut").toString(); out.isNotEmpty())
         device.openOutput (out);
 
-    listeners.call ([] (Listener& l) { l.editReplaced(); });
+    fireReplaced();
     listeners.call ([] (Listener& l) { l.bankChanged(); });
 }
 
@@ -469,12 +498,19 @@ void Session::fromValueTree (const juce::ValueTree& v)
 // ---------------------------------------------------------------------------
 void Session::sidUnsolicitedDump (const sysex::Message& m)
 {
+    if (m.kind == sysex::Message::Kind::EnsembleDump)
+    {
+        ensemble->replace (m.ensemble, true);
+        setStatus ("Received ensemble from MIDIbox SID");
+        return;
+    }
+
     // E.g. the user pressed "send" on the box: show it in the editor.
     if ((m.dumpType & sysex::type::EditBuffer) != 0 || m.bank != bankNumber)
     {
         editPatch = m.patch;
         sourceSlot = -1;
-        listeners.call ([] (Listener& l) { l.editReplaced(); });
+        fireReplaced();
         setStatus ("Received patch from MIDIbox SID: " + juce::String (m.patch.name()));
     }
     else

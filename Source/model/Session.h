@@ -4,6 +4,7 @@
 // librarian, and the operations that move patches between them, files and
 // the MIDIbox SID.
 
+#include "ParamTarget.h"
 #include "device/SidDevice.h"
 #include "sid/Params.h"
 #include "sid/SyxFile.h"
@@ -13,7 +14,10 @@
 #include <array>
 #include <optional>
 
-class Session : private SidDevice::Listener
+class EnsembleSession;
+
+class Session : public ParamTarget,
+                private SidDevice::Listener
 {
 public:
     static constexpr int kSlots = 128;
@@ -29,8 +33,10 @@ public:
 
     // Change one parameter. writeOption mirrors the change to other voices or
     // the other channel (L/R) exactly like the firmware does.
-    void setParam (const sid::ParamDef& p, int raw, uint8_t writeOption = 0);
-    int getParam (const sid::ParamDef& p) const { return editPatch.getRaw (p); }
+    void setParam (const sid::ParamDef& p, int raw, uint8_t writeOption = 0) override;
+    int getParam (const sid::ParamDef& p) const override { return editPatch.getRaw (p); }
+    uint8_t getByte (int addr) const override { return editPatch.byte (addr); }
+    int defaultRaw (const sid::ParamDef& p) const override;
     void setName (const juce::String& name);
 
     // Replace the whole edit buffer (sends it to the box when live).
@@ -79,7 +85,11 @@ public:
     void addListener (Listener* l) { listeners.add (l); }
     void removeListener (Listener* l) { listeners.remove (l); }
 
+    // The ensemble being edited (separate from the patch).
+    EnsembleSession& getEnsemble() { return *ensemble; }
+
     juce::String getStatus() const { return status; }
+    void setStatus (const juce::String& s, float newProgress = -1.0f);
     float getProgress() const { return progress; } // 0..1, < 0 when idle
     const juce::StringArray& getLog() const { return logLines; }
 
@@ -87,7 +97,8 @@ private:
     void sidUnsolicitedDump (const sid::sysex::Message&) override;
     void sidLog (const juce::String&) override;
 
-    void setStatus (const juce::String& s, float newProgress = -1.0f);
+    void fireReplaced();
+    void fireChanged (const std::vector<uint16_t>& addresses);
     void fetchNext (int i, int endExclusive, int got, int failed);
     void writeNext (std::vector<int> remaining, int done, int failed, int total);
 
@@ -105,5 +116,6 @@ private:
     juce::StringArray logLines;
 
     juce::ListenerList<Listener> listeners;
+    std::unique_ptr<EnsembleSession> ensemble;
     JUCE_DECLARE_WEAK_REFERENCEABLE (Session)
 };

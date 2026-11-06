@@ -167,6 +167,71 @@ Bytes storeEditBuffer (uint8_t device, int sidIndex)
     return b;
 }
 
+Bytes requestEnsemble (uint8_t device, uint8_t ensemble)
+{
+    auto b = header (device, cmd::Read);
+    b.insert (b.end(), { type::Ensemble, 0x00, (uint8_t) (ensemble & 0x7f), 0xf7 });
+    return b;
+}
+
+Bytes requestEnsembleEditBuffer (uint8_t device, uint8_t defaultEnsemble)
+{
+    auto b = header (device, cmd::Read);
+    b.insert (b.end(), { type::EnsembleEdit, 0x00, (uint8_t) (defaultEnsemble & 0x7f), 0xf7 });
+    return b;
+}
+
+namespace
+{
+    void appendEnsembleNibbles (Bytes& b, const Ensemble& e)
+    {
+        const size_t start = b.size();
+        for (auto v : e.data)
+        {
+            b.push_back (v & 0x0f);
+            b.push_back ((v >> 4) & 0x0f);
+        }
+        b.push_back (checksum (b.data() + start, b.size() - start));
+    }
+} // namespace
+
+Bytes writeEnsemble (uint8_t device, uint8_t ensemble, const Ensemble& e)
+{
+    auto b = header (device, cmd::Write);
+    b.insert (b.end(), { type::Ensemble, 0x00, (uint8_t) (ensemble & 0x7f) });
+    appendEnsembleNibbles (b, e);
+    b.push_back (0xf7);
+    return b;
+}
+
+Bytes writeEnsembleEditBuffer (uint8_t device, const Ensemble& e)
+{
+    auto b = header (device, cmd::Write);
+    b.insert (b.end(), { type::EnsembleEdit, 0x00, 0x00 });
+    appendEnsembleNibbles (b, e);
+    b.push_back (0xf7);
+    return b;
+}
+
+Bytes ensembleParameterWrite (uint8_t device, uint16_t addr, uint8_t value)
+{
+    auto b = header (device, cmd::ParWrite);
+    b.insert (b.end(), { type::Ensemble,
+                         (uint8_t) ((addr >> 7) & 0x01),
+                         (uint8_t) (addr & 0x7f),
+                         (uint8_t) (value & 0x0f),
+                         (uint8_t) ((value >> 4) & 0x0f),
+                         0xf7 });
+    return b;
+}
+
+Bytes storeEnsembleEditBuffer (uint8_t device)
+{
+    auto b = header (device, cmd::Special);
+    b.insert (b.end(), { 0x18, 0x70, 0xf7 });
+    return b;
+}
+
 Bytes ping (uint8_t device)
 {
     auto b = header (device, cmd::Ack);
@@ -200,7 +265,17 @@ std::optional<Message> parse (const uint8_t* data, size_t size)
         m.patchNumber = body[2];
 
         if (m.dumpType == type::Ensemble || m.dumpType == type::EnsembleEdit)
-            return m; // ensembles are handled in a later phase (kind Other)
+        {
+            const size_t nibbleCount = 2 * kEnsembleSize;
+            if (bodySize < 3 + nibbleCount + 1)
+                return m; // truncated
+            const uint8_t* nib = body + 3;
+            m.checksumOk = checksum (nib, nibbleCount) == body[3 + nibbleCount];
+            for (size_t i = 0; i < (size_t) kEnsembleSize; ++i)
+                m.ensemble.data[i] = (uint8_t) ((nib[2 * i] & 0x0f) | ((nib[2 * i + 1] & 0x0f) << 4));
+            m.kind = Message::Kind::EnsembleDump;
+            return m;
+        }
 
         const size_t copies = extended ? 4 : 1;
         const size_t nibbleCount = 2 * kPatchSize * copies;

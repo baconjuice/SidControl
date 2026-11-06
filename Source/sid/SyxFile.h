@@ -17,9 +17,18 @@ struct Entry
     Patch patch;
 };
 
+struct EnsembleEntry
+{
+    uint8_t number = 0;
+    bool editBuffer = false;
+    bool checksumOk = false;
+    Ensemble ensemble;
+};
+
 struct ReadResult
 {
     std::vector<Entry> patches;
+    std::vector<EnsembleEntry> ensembles;
     int otherMessages = 0;   // SysEx messages that weren't SID V2 patch dumps
 };
 
@@ -28,4 +37,5 @@ ReadResult read (const uint8_t* data, size_t size);
 
 // One write message per patch, addressed to <bank>/<number> as given.
 sysex::Bytes write (const std::vector<Entry>& entries, uint8_t device = 0);
+sysex::Bytes writeEnsembles (const std::vector<EnsembleEntry>& entries, uint8_t device = 0);
 } // namespace sid::syx

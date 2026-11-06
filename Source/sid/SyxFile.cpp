@@ -31,6 +31,15 @@ ReadResult read (const uint8_t* data, size_t size)
             e.patch = msg->patch;
             r.patches.push_back (e);
         }
+        else if (msg && msg->kind == sysex::Message::Kind::EnsembleDump)
+        {
+            EnsembleEntry e;
+            e.number = msg->patchNumber;
+            e.editBuffer = msg->dumpType == sysex::type::EnsembleEdit;
+            e.checksumOk = msg->checksumOk;
+            e.ensemble = msg->ensemble;
+            r.ensembles.push_back (e);
+        }
         else
         {
             ++r.otherMessages;
@@ -47,6 +56,17 @@ sysex::Bytes write (const std::vector<Entry>& entries, uint8_t device)
     {
         auto m = e.editBuffer ? sysex::writeEditBuffer (device, e.patch)
                               : sysex::writePatch (device, e.bank, e.patchNumber, e.patch);
+        out.insert (out.end(), m.begin(), m.end());
+    }
+    return out;
+}
+sysex::Bytes writeEnsembles (const std::vector<EnsembleEntry>& entries, uint8_t device)
+{
+    sysex::Bytes out;
+    for (const auto& e : entries)
+    {
+        auto m = e.editBuffer ? sysex::writeEnsembleEditBuffer (device, e.ensemble)
+                              : sysex::writeEnsemble (device, e.number, e.ensemble);
         out.insert (out.end(), m.begin(), m.end());
     }
     return out;

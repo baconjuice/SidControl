@@ -8,17 +8,17 @@ namespace ui
 // ---------------------------------------------------------------------------
 // ParamControl
 // ---------------------------------------------------------------------------
-ParamControl::ParamControl (Session& s, const sid::ParamDef& d) : session (s), def (d)
+ParamControl::ParamControl (ParamTarget& s, const sid::ParamDef& d) : session (s), def (d)
 {
-    session.addListener (this);
+    session.addTargetListener (this);
 }
 
 ParamControl::~ParamControl()
 {
-    session.removeListener (this);
+    session.removeTargetListener (this);
 }
 
-void ParamControl::editChanged (const std::vector<uint16_t>& addresses)
+void ParamControl::targetChanged (const std::vector<uint16_t>& addresses)
 {
     for (auto a : def.addresses())
         if (std::find (addresses.begin(), addresses.end(), a) != addresses.end())
@@ -36,7 +36,7 @@ void ParamControl::write (int raw)
 // ---------------------------------------------------------------------------
 // ParamKnob
 // ---------------------------------------------------------------------------
-ParamKnob::ParamKnob (Session& s, const sid::ParamDef& d, juce::String label, FormatFn format)
+ParamKnob::ParamKnob (ParamTarget& s, const sid::ParamDef& d, juce::String label, FormatFn format)
     : ParamControl (s, d), formatter (std::move (format))
 {
     title.setText (label.isNotEmpty() ? label : juce::String (d.name), juce::dontSendNotification);
@@ -51,8 +51,7 @@ ParamKnob::ParamKnob (Session& s, const sid::ParamDef& d, juce::String label, Fo
     slider.setRange (d.minDisplay(), d.maxDisplay(), 1.0);
     slider.setMouseDragSensitivity (d.maxRaw() > 255 ? 400 : 180);
     slider.setScrollWheelEnabled (true);
-    slider.setDoubleClickReturnValue (
-        true, sid::Patch::makeInit (s.engine()).getRaw (d) - d.offset);
+    slider.setDoubleClickReturnValue (true, s.defaultRaw (d) - d.offset);
     if (formatter)
         slider.textFromValueFunction = [this] (double v) { return formatter ((int) v); };
     slider.onValueChange = [this] { write ((int) slider.getValue() + def.offset); };
@@ -78,7 +77,7 @@ void ParamKnob::refresh()
 // ---------------------------------------------------------------------------
 // ParamToggle
 // ---------------------------------------------------------------------------
-ParamToggle::ParamToggle (Session& s, const sid::ParamDef& d, juce::String label) : ParamControl (s, d)
+ParamToggle::ParamToggle (ParamTarget& s, const sid::ParamDef& d, juce::String label) : ParamControl (s, d)
 {
     button.setButtonText (label.isNotEmpty() ? label : juce::String (d.name));
     button.setClickingTogglesState (true);
@@ -98,7 +97,7 @@ juce::Point<int> ParamToggle::preferredSize() const
 // ---------------------------------------------------------------------------
 // ParamCombo
 // ---------------------------------------------------------------------------
-ParamCombo::ParamCombo (Session& s, const sid::ParamDef& d, juce::String label, int w,
+ParamCombo::ParamCombo (ParamTarget& s, const sid::ParamDef& d, juce::String label, int w,
                         std::vector<std::string> customChoices)
     : ParamControl (s, d), width (w)
 {
@@ -182,7 +181,7 @@ public:
 };
 } // namespace
 
-ParamGroup::ParamGroup (Session& s, const sid::ParamTable& t, juce::String groupTitle, WriteOptionFn wopt)
+ParamGroup::ParamGroup (ParamTarget& s, const sid::ParamTable& t, juce::String groupTitle, WriteOptionFn wopt)
     : title (std::move (groupTitle)), session (s), table (t), writeOption (std::move (wopt))
 {
 }

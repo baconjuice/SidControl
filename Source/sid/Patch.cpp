@@ -63,8 +63,9 @@ void Patch::setName (std::string_view newName)
     }
 }
 
-int Patch::getRaw (const ParamDef& p) const
+int getRawValue (const uint8_t* data, size_t size, const ParamDef& p)
 {
+    auto byte = [&] (int addr) { return data[(size_t) addr % size]; };
     switch (p.kind)
     {
         case ParamDef::Kind::Word12:
@@ -79,16 +80,17 @@ int Patch::getRaw (const ParamDef& p) const
     }
 }
 
-std::vector<uint16_t> Patch::setRaw (const ParamDef& p, int raw)
+std::vector<uint16_t> setRawValue (uint8_t* data, size_t size, const ParamDef& p, int raw)
 {
     raw = std::clamp (raw, 0, p.maxRaw());
     std::vector<uint16_t> changed;
 
+    auto byte = [&] (int addr) { return data[(size_t) addr % size]; };
     auto put = [&] (int addr, uint8_t v)
     {
         if (byte (addr) != v)
         {
-            setByte (addr, v);
+            data[(size_t) addr % size] = v;
             changed.push_back ((uint16_t) addr);
         }
     };

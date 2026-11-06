@@ -52,9 +52,18 @@ Bytes playPatch (uint8_t device, int instrument = -1);
 Bytes storeEditBuffer (uint8_t device, int sidIndex); // sidIndex 0..3
 Bytes ping (uint8_t device);
 
+// Ensembles (0..127). The edit-buffer request still needs an ensemble number:
+// the box reads settings of unavailable slave cores from that stored ensemble.
+Bytes requestEnsemble (uint8_t device, uint8_t ensemble);
+Bytes requestEnsembleEditBuffer (uint8_t device, uint8_t defaultEnsemble);
+Bytes writeEnsemble (uint8_t device, uint8_t ensemble, const Ensemble& e);
+Bytes writeEnsembleEditBuffer (uint8_t device, const Ensemble& e);
+Bytes ensembleParameterWrite (uint8_t device, uint16_t addr, uint8_t value);
+Bytes storeEnsembleEditBuffer (uint8_t device);
+
 struct Message
 {
-    enum class Kind { PatchDump, Ack, Error, Other };
+    enum class Kind { PatchDump, EnsembleDump, Ack, Error, Other };
 
     Kind kind = Kind::Other;
     uint8_t device = 0;
@@ -64,6 +73,7 @@ struct Message
     uint8_t patchNumber = 0;
     bool checksumOk = false;
     Patch patch;           // PatchDump
+    Ensemble ensemble;     // EnsembleDump
     uint8_t value = 0;     // Ack: <sids> flags, Error: error code
 };
 

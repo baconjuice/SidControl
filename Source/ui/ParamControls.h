@@ -3,7 +3,7 @@
 // Controls bound to one patch parameter. They update themselves when the
 // edit buffer changes and write through the Session (which sends live edits).
 
-#include "model/Session.h"
+#include "model/ParamTarget.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -15,10 +15,10 @@ using WriteOptionFn = std::function<uint8_t()>;
 using FormatFn = std::function<juce::String (int displayValue)>;
 
 class ParamControl : public juce::Component,
-                     protected Session::Listener
+                     protected ParamTarget::Listener
 {
 public:
-    ParamControl (Session& s, const sid::ParamDef& d);
+    ParamControl (ParamTarget& s, const sid::ParamDef& d);
     ~ParamControl() override;
 
     virtual juce::Point<int> preferredSize() const = 0;
@@ -26,14 +26,14 @@ public:
     const sid::ParamDef& getDef() const { return def; }
 
 protected:
-    void editReplaced() override { refresh(); }
-    void editChanged (const std::vector<uint16_t>& addresses) override;
+    void targetReplaced() override { refresh(); }
+    void targetChanged (const std::vector<uint16_t>& addresses) override;
     virtual void refresh() = 0;
 
     void write (int raw);
     int read() const { return session.getParam (def); }
 
-    Session& session;
+    ParamTarget& session;
     const sid::ParamDef& def;
     WriteOptionFn writeOption;
 };
@@ -41,7 +41,7 @@ protected:
 class ParamKnob : public ParamControl
 {
 public:
-    ParamKnob (Session& s, const sid::ParamDef& d, juce::String label = {}, FormatFn format = {});
+    ParamKnob (ParamTarget& s, const sid::ParamDef& d, juce::String label = {}, FormatFn format = {});
     juce::Point<int> preferredSize() const override { return compact ? juce::Point<int> { 48, 50 } : juce::Point<int> { 60, 78 }; }
     void resized() override;
     void refresh() override;
@@ -58,7 +58,7 @@ private:
 class ParamToggle : public ParamControl
 {
 public:
-    ParamToggle (Session& s, const sid::ParamDef& d, juce::String label = {});
+    ParamToggle (ParamTarget& s, const sid::ParamDef& d, juce::String label = {});
     juce::Point<int> preferredSize() const override;
     void resized() override { button.setBounds (getLocalBounds()); }
     void refresh() override { button.setToggleState (read() != 0, juce::dontSendNotification); }
@@ -70,7 +70,7 @@ private:
 class ParamCombo : public ParamControl
 {
 public:
-    ParamCombo (Session& s, const sid::ParamDef& d, juce::String label = {}, int width = 120,
+    ParamCombo (ParamTarget& s, const sid::ParamDef& d, juce::String label = {}, int width = 120,
                 std::vector<std::string> customChoices = {});
     juce::Point<int> preferredSize() const override { return { width, compact ? 24 : 42 }; }
     void resized() override;
@@ -91,7 +91,7 @@ std::vector<std::string> parameterNumberChoices (sid::Engine e);
 class ParamGroup : public juce::Component
 {
 public:
-    ParamGroup (Session& s, const sid::ParamTable& t, juce::String title, WriteOptionFn wopt = {});
+    ParamGroup (ParamTarget& s, const sid::ParamTable& t, juce::String title, WriteOptionFn wopt = {});
 
     ParamKnob& knob (const std::string& id, juce::String label = {}, FormatFn format = {});
     ParamToggle& toggle (const std::string& id, juce::String label = {});
@@ -117,7 +117,7 @@ private:
     int layout (int width, bool apply);
     void addItem (std::unique_ptr<juce::Component> c, juce::Point<int> size);
 
-    Session& session;
+    ParamTarget& session;
     const sid::ParamTable& table;
     WriteOptionFn writeOption;
     std::vector<std::unique_ptr<juce::Component>> owned;

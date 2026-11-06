@@ -43,10 +43,16 @@ target_sources(SidControl PRIVATE
     Source/PluginEditor.cpp
     Source/device/SidDevice.cpp
     Source/model/Session.cpp
+    Source/model/EnsembleSession.cpp
     Source/ui/ParamControls.cpp
     Source/ui/ConnectionBar.cpp
     Source/ui/LibraryPanel.cpp
+    Source/ui/EditorCommon.cpp
     Source/ui/LeadEditor.cpp
+    Source/ui/BasslineEditor.cpp
+    Source/ui/DrumEditor.cpp
+    Source/ui/MultiEditor.cpp
+    Source/ui/EnsembleEditor.cpp
     Source/ui/LookAndFeel.cpp)
 
 target_compile_definitions(SidControl PUBLIC
@@ -73,3 +79,12 @@ enable_testing()
 add_executable(sid_tests Tests/CoreTests.cpp)
 target_link_libraries(sid_tests PRIVATE sid_core)
 add_test(NAME sid_tests COMMAND sid_tests)
+
+# ---------------------------------------------------------------------------
+# sidcli: command-line diagnostics (port scan, ping, edit buffer read)
+# ---------------------------------------------------------------------------
+juce_add_console_app(sidcli PRODUCT_NAME "sidcli")
+target_sources(sidcli PRIVATE Tools/SidCli.cpp Source/device/SidDevice.cpp)
+target_compile_definitions(sidcli PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
+target_link_libraries(sidcli PRIVATE sid_core juce::juce_audio_devices juce::juce_events
+                      juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)

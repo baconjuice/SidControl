@@ -41,13 +41,21 @@ the DAW project, or in the app settings when you run it standalone.
 
 ## Status
 
-| Engine   | Librarian / transfer | Editor |
-|----------|----------------------|--------|
-| Lead     | yes | full: voices, filters, LFOs, envelopes, mod matrix, trigger matrix, wavetables, knobs |
-| Bassline | yes | planned |
-| Drum     | yes | planned |
-| Multi    | yes | planned |
-| Ensemble | –   | planned |
+| Engine   | Editor pages |
+|----------|--------------|
+| Lead     | Voices, Filter & Global, LFOs, Envelopes, Mod Matrix, Trigger Matrix, Wavetables, Knobs & Ext |
+| Bassline | Bassline L/R (OSC1-3, accent, play mode, LFOs, envelope, sequencer settings), Sequences (step editor), Filter & Global, Knobs & Ext |
+| Drum     | Instruments (16), Patterns (8 tracks: A, A accented, B per step), Filter & Global, Knobs & Ext |
+| Multi    | Instruments (6, with LFOs, envelope, wavetable sequencer), shared Wavetable, Filter & Global, Knobs & Ext |
+| Ensemble | Per SID core: patch, clock, options, analog outputs, filter calibration, 6 instruments (channel, split, transpose) |
+
+Patches of every engine can be fetched, stored, sent and saved. Ensembles have their own
+fetch, store, send and `.syx` buttons (the **Ensemble** button in the patch header).
+
+Keyboard play-through: MIDI from the standalone app's "Active MIDI Inputs" or from the DAW track
+goes to the SID. You can remap it to one channel with the **Keys** menu.
+
+`sidcli` (built with the app) is a diagnostics tool: `list`, `scan`, `ping`, `get`, `getens`, `play`, `monitor`.
 
 ## Layout
 

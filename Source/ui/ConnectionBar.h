@@ -26,13 +26,14 @@ private:
 
     Session& session;
     juce::Label inLabel, outLabel, devLabel;
-    juce::ComboBox inBox, outBox, devBox;
+    juce::ComboBox inBox, outBox, devBox, keysBox;
     juce::TextButton pingButton { "Test" }, liveButton { "Live" }, getButton { "Get Edit Buffer" },
         sendButton { "Send Edit Buffer" }, playButton { "Play" }, panicButton { "Panic" };
 
     juce::Array<juce::MidiDeviceInfo> inputs, outputs;
     juce::MidiDeviceListConnection deviceListConnection;
     juce::uint32 lastIn = 0, lastOut = 0;
+    bool playHeld = false;
     juce::Rectangle<int> inLed, outLed;
 };
 } // namespace ui

@@ -15,6 +15,7 @@
 
 #include <juce_audio_devices/juce_audio_devices.h>
 
+#include <atomic>
 #include <deque>
 #include <functional>
 #include <map>
@@ -43,8 +44,17 @@ public:
     void send (const sid::sysex::Bytes& message);
     void sendMidi (const juce::MidiMessage& m);
 
+    // Play-through from a keyboard or DAW track. Called on the audio thread:
+    // forwards notes, controllers, pitch bend etc. (not SysEx) to the SID.
+    void forwardMidi (const juce::MidiBuffer& buffer);
+
+    // 0 = keep the incoming channel, 1..16 = send everything on that channel.
+    void setKeyboardChannel (int ch) { keyboardChannel = juce::jlimit (0, 16, ch); }
+    int getKeyboardChannel() const { return keyboardChannel.load(); }
+
     // Live edit of one byte in the edit buffer (coalesced and rate limited).
     void queueParameter (uint16_t addr, uint8_t value, uint8_t writeOption = 0);
+    void queueEnsembleParameter (uint16_t addr, uint8_t value) { queueParameter (addr, value, kEnsembleKey); }
     void clearPendingParameters() { pendingParams.clear(); }
 
     enum class Expect { Nothing, Dump, Ack };
@@ -77,6 +87,11 @@ public:
 
     void log (const juce::String& text);
 
+    // Time (ms counter) of the last MIDI message of any kind received on the
+    // input, so the UI can show activity even for notes or clock.
+    juce::uint32 getLastInputActivity() const { return lastInputActivity.load(); }
+    juce::uint32 getLastOutputActivity() const { return lastOutputActivity.load(); }
+
 private:
     struct Job
     {
@@ -100,8 +115,12 @@ private:
     juce::String inputId, outputId;
     uint8_t deviceNumber = 0;
 
+    static constexpr uint8_t kEnsembleKey = 0x70; // marks ensemble writes in pendingParams
     std::map<std::pair<uint16_t, uint8_t>, uint8_t> pendingParams; // (addr, wopt) -> value
     juce::uint32 lastParamSendAt = 0;
+    std::atomic<juce::uint32> lastInputActivity { 0 }, lastOutputActivity { 0 };
+    std::atomic<int> keyboardChannel { 0 };
+    juce::SpinLock outputLock; // output is used from the message and audio threads
     std::deque<Job> jobs;
     std::deque<std::pair<sid::Patch, juce::uint32>> recentlySentDumps; // to ignore a MIDI merger echo
     juce::ListenerList<Listener> listeners;

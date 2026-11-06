@@ -61,8 +61,15 @@ private:
     std::unordered_map<std::string, size_t> lookup;
 };
 
-// Parameters shared by every engine (0x000..0x05f) plus the full Lead engine.
+// Parameters shared by every engine (0x000..0x05f) plus the engine's own.
 const ParamTable& leadParams();
+const ParamTable& basslineParams();
+const ParamTable& drumParams();
+const ParamTable& multiParams();
+const ParamTable& paramsFor (Engine e);
+
+// Ensemble parameters (addresses in the 256-byte ensemble).
+const ParamTable& ensembleParams();
 
 // Name of an assignable parameter number (0..255) for knobs, wavetables,
 // velocity etc. From mbsidv2_parameter_chart.txt. May be empty.
@@ -76,4 +83,7 @@ const std::vector<std::string>& modOperators();
 const std::vector<std::string>& envLoopPoints();
 const std::vector<std::string>& arpDirections();
 const std::vector<std::string>& lfoClockRates(); // CSn rate names, index = raw/8
+const std::vector<std::string>& drumModels();
+const std::vector<std::string>& voiceAssignments(); // LR, L-, -R, O1..O6
+std::string noteName (int midiNote);                 // 60 -> "C3" (MBSID octave numbering)
 } // namespace sid

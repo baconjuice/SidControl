@@ -19,6 +19,8 @@ bool SidControlProcessor::isBusesLayoutSupported (const BusesLayout& layouts) co
 
 void SidControlProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
+    // Keyboard (standalone "Active MIDI Inputs") or DAW track -> MIDIbox SID.
+    device.forwardMidi (midi);
     buffer.clear();
     midi.clear();
 }

@@ -39,6 +39,15 @@ ConnectionBar::ConnectionBar (Session& s) : session (s)
         else if (i < outputs.size()) session.device.openOutput (outputs[i].identifier);
     };
 
+    keysBox.addItem ("Keys: as played", 1);
+    for (int ch = 1; ch <= 16; ++ch)
+        keysBox.addItem ("Keys to ch " + juce::String (ch), ch + 1);
+    keysBox.setTooltip ("MIDI from your keyboard (standalone: Options > Audio/MIDI Settings > Active MIDI Inputs) "
+                        "or the DAW track is passed to the MIDIbox SID. Pick the channel the SID listens on, "
+                        "or keep the keyboard's channel.");
+    keysBox.onChange = [this] { session.device.setKeyboardChannel (keysBox.getSelectedId() - 1); };
+    addAndMakeVisible (keysBox);
+
     pingButton.setTooltip ("Ping the MIDIbox SID and show which SID cores answer");
     pingButton.onClick = [this] { session.ping(); };
 
@@ -51,8 +60,20 @@ ConnectionBar::ConnectionBar (Session& s) : session (s)
     getButton.onClick = [this] { session.fetchEditBuffer(); };
     sendButton.setTooltip ("Send the whole patch in the editor to the MIDIbox SID (not stored)");
     sendButton.onClick = [this] { session.sendEditBuffer(); };
-    playButton.setTooltip ("Play a test note (C-3) on the MIDIbox SID");
-    playButton.onClick = [this] { session.playPatch(); };
+    // Hold to play, like the Play button on the MIDIbox SID: the firmware's play
+    // command only starts notes, so releasing sends "notes off".
+    playButton.setTooltip ("Hold to play a test note (C-3) on the MIDIbox SID");
+    playButton.onStateChange = [this]
+    {
+        const bool down = playButton.isDown();
+        if (down == playHeld)
+            return;
+        playHeld = down;
+        if (down)
+            session.playPatch();
+        else
+            session.allNotesOff();
+    };
     panicButton.setTooltip ("All notes and sequences off");
     panicButton.onClick = [this] { session.allNotesOff(); };
 
@@ -90,6 +111,7 @@ void ConnectionBar::refreshPorts()
     fill (inBox, inputs, session.device.getInputId());
     fill (outBox, outputs, session.device.getOutputId());
     devBox.setSelectedId (session.device.getDeviceNumber() + 1, juce::dontSendNotification);
+    keysBox.setSelectedId (session.device.getKeyboardChannel() + 1, juce::dontSendNotification);
 }
 
 void ConnectionBar::sidPortsChanged()
@@ -101,14 +123,16 @@ void ConnectionBar::sidPortsChanged()
 void ConnectionBar::sidActivity (bool outgoing)
 {
     (outgoing ? lastOut : lastIn) = juce::Time::getMillisecondCounter();
-    repaint (outgoing ? outLed : inLed);
+    repaint (outgoing ? outLed.expanded (6, 12) : inLed.expanded (6, 12));
 }
 
 void ConnectionBar::timerCallback()
 {
     const auto now = juce::Time::getMillisecondCounter();
-    if (now - lastIn < 300) repaint (inLed);
-    if (now - lastOut < 300) repaint (outLed);
+    lastIn = juce::jmax (lastIn, session.device.getLastInputActivity());
+    lastOut = juce::jmax (lastOut, session.device.getLastOutputActivity());
+    if (now - lastIn < 300) repaint (inLed.expanded (2));
+    if (now - lastOut < 300) repaint (outLed.expanded (2));
     if (liveButton.getToggleState() != session.isLive())
         liveButton.setToggleState (session.isLive(), juce::dontSendNotification);
 }
@@ -129,6 +153,10 @@ void ConnectionBar::paint (juce::Graphics& g)
     };
     led (inLed, lastIn, colours::good);
     led (outLed, lastOut, colours::accent2);
+    g.setFont (font (10.0f));
+    g.setColour (colours::dimText);
+    g.drawText ("in", inLed.translated (0, 10).withSizeKeepingCentre (20, 10), juce::Justification::centred);
+    g.drawText ("out", outLed.translated (0, 10).withSizeKeepingCentre (20, 10), juce::Justification::centred);
 }
 
 void ConnectionBar::resized()
@@ -136,17 +164,19 @@ void ConnectionBar::resized()
     auto r = getLocalBounds().reduced (8, 7);
     inLabel.setBounds (r.removeFromLeft (52));
     r.removeFromLeft (4);
-    inBox.setBounds (r.removeFromLeft (170));
-    inLed = r.removeFromLeft (16).withSizeKeepingCentre (8, 8);
+    inBox.setBounds (r.removeFromLeft (150));
+    inLed = r.removeFromLeft (20).withSizeKeepingCentre (10, 10).translated (0, -4);
     outLabel.setBounds (r.removeFromLeft (60));
     r.removeFromLeft (4);
-    outBox.setBounds (r.removeFromLeft (170));
-    outLed = r.removeFromLeft (16).withSizeKeepingCentre (8, 8);
+    outBox.setBounds (r.removeFromLeft (150));
+    outLed = r.removeFromLeft (20).withSizeKeepingCentre (10, 10).translated (0, -4);
     devLabel.setBounds (r.removeFromLeft (50));
     r.removeFromLeft (4);
     devBox.setBounds (r.removeFromLeft (100));
     r.removeFromLeft (8);
     pingButton.setBounds (r.removeFromLeft (50));
+    r.removeFromLeft (8);
+    keysBox.setBounds (r.removeFromLeft (130));
 
     panicButton.setBounds (r.removeFromRight (60));
     r.removeFromRight (6);

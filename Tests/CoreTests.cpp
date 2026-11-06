@@ -163,6 +163,72 @@ static void testLinks()
     CHECK (linkedAddresses (Engine::Drum, 0x61, sysex::wopt::LeftRight).empty());
 }
 
+static void testEngineTables()
+{
+    // Every parameter of every table must lie inside its buffer and round trip.
+    struct T { const ParamTable* t; int size; const char* name; };
+    const T tables[] = { { &leadParams(), kPatchSize, "lead" }, { &basslineParams(), kPatchSize, "bassline" },
+                         { &drumParams(), kPatchSize, "drum" }, { &multiParams(), kPatchSize, "multi" },
+                         { &ensembleParams(), kEnsembleSize, "ensemble" } };
+    for (auto& tt : tables)
+    {
+        for (const auto& d : tt.t->all())
+        {
+            if (d.addr + (int) d.addresses().size() - 1 >= tt.size)
+            {
+                ++failures;
+                std::printf ("FAIL %s: %s out of range\n", tt.name, d.id.c_str());
+            }
+            std::vector<uint8_t> buf ((size_t) tt.size, 0);
+            setRawValue (buf.data(), buf.size(), d, d.maxRaw());
+            if (getRawValue (buf.data(), buf.size(), d) != d.maxRaw())
+            {
+                ++failures;
+                std::printf ("FAIL %s: round trip %s\n", tt.name, d.id.c_str());
+            }
+        }
+    }
+
+    // Spot checks against the spec.
+    CHECK (basslineParams().get ("bR.seq.num").addr == 0xb0 + 0x2c);
+    CHECK (basslineParams().get ("bL.o3.oct").addr == 0xab);
+    CHECK (basslineParams().get ("bL.env.decay").addr == 0x87);
+    CHECK (drumParams().get ("d16.velpar").addr == 0xf6 + 8);
+    CHECK (multiParams().get ("m6.wt.loop").addr == 0x17f);
+    CHECK (multiParams().get ("m2.lfo1.rate").addr == 0x90 + 0x16);
+    CHECK (ensembleParams().get ("s4.i6.transpose").addr == 0xc0 + 0x10 + 5 * 8 + 3);
+
+    // Init patches decode sensibly.
+    CHECK (Patch::makeInit (Engine::Bassline).getRaw (basslineParams().get ("eng.volume")) > 0);
+    CHECK (Patch::makeInit (Engine::Drum).getRaw (drumParams().get ("d1.model")) < 20);
+}
+
+static void testEnsemble()
+{
+    Ensemble e;
+    for (int i = 0; i < kEnsembleSize; ++i) e.setByte (i, (uint8_t) (i * 7 + 3));
+    auto msg = sysex::writeEnsemble (0, 5, e);
+    CHECK (msg.size() == 5 + 1 + 1 + 3 + 512 + 1 + 1);
+    auto p = sysex::parse (msg.data(), msg.size());
+    CHECK (p && p->kind == sysex::Message::Kind::EnsembleDump && p->checksumOk && p->patchNumber == 5);
+    CHECK (p && p->ensemble == e);
+
+    auto pw = sysex::ensembleParameterWrite (0, 0x85, 0x3c);
+    const sysex::Bytes expect { 0xf0, 0x00, 0x00, 0x7e, 0x4b, 0x00, 0x06, 0x70, 0x01, 0x05, 0x0c, 0x03, 0xf7 };
+    CHECK (pw == expect);
+
+    // .syx with patches and ensembles mixed
+    std::vector<syx::EnsembleEntry> ens { { 3, false, true, e } };
+    auto bytes = syx::writeEnsembles (ens);
+    syx::Entry pe;
+    pe.patch = Patch::makeInit (Engine::Drum);
+    auto pb = syx::write ({ pe });
+    bytes.insert (bytes.end(), pb.begin(), pb.end());
+    auto r = syx::read (bytes.data(), bytes.size());
+    CHECK (r.ensembles.size() == 1 && r.patches.size() == 1 && r.otherMessages == 0);
+    CHECK (r.ensembles.size() == 1 && r.ensembles[0].number == 3 && r.ensembles[0].ensemble == e);
+}
+
 static void testSyxFile()
 {
     std::vector<syx::Entry> in;
@@ -215,6 +281,8 @@ int main (int argc, char** argv)
     testBitFields();
     testSyxFile();
     testLinks();
+    testEngineTables();
+    testEnsemble();
     for (int i = 1; i < argc; ++i)
         summariseFile (argv[i]);
 
