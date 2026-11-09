@@ -73,3 +73,21 @@ pass through as before. Mappings are saved with the app settings or the DAW proj
 
 Developer aid: setting `SIDCONTROL_SNAPSHOT_DIR=/some/dir` makes the app render every editor page to PNG and quit.
 You can also set `SIDCONTROL_SNAPSHOT_SYX` and `SIDCONTROL_SNAPSHOT_SLOT` to load a patch first.
+
+## Credits
+
+SidControl would not exist without **Thorsten Klose (TK.)** and the [MIDIbox](http://www.midibox.org) community.
+The MIDIbox SID, its V2 firmware, the SysEx protocol, the sound engines and the preset patches are TK.'s work.
+SidControl is only a remote control for them.
+
+- The SysEx implementation follows TK.'s `mbsidv2_sysex_implementation.txt`.
+- The parameter tables follow the firmware sources (`sid_patch.inc`, `sid_ens.inc` and others) in
+  [midibox/mios8](https://github.com/midibox/mios8).
+- `Source/sid/InitPatches.cpp` (the init patches) is generated from the firmware's `sid_preset_*.inc` files.
+- `Source/sid/ParamNames.cpp` (parameter names) is generated from `mbsidv2_parameter_chart.txt`.
+
+Those files are Copyright 1998–2007 Thorsten Klose (tk@midibox.org) and are "licensed for personal
+non-commercial use only". SidControl is a free, non-commercial hobby project. Please don't use any of it commercially.
+
+SidControl is built with [JUCE](https://juce.com).
+The SammichSID hardware was designed by Wilba for the MIDIbox community.
