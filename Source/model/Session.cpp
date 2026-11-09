@@ -1,5 +1,6 @@
 #include "Session.h"
 #include "EnsembleSession.h"
+#include "MidiLearn.h"
 
 #include <cstring>
 
@@ -20,6 +21,7 @@ Session::Session (SidDevice& d) : device (d)
 {
     device.addListener (this);
     ensemble = std::make_unique<EnsembleSession> (*this);
+    midiLearn = std::make_unique<MidiLearn> (*this);
 }
 
 void Session::fireReplaced()
@@ -447,6 +449,7 @@ juce::ValueTree Session::toValueTree() const
     }
     v.appendChild (b, nullptr);
     v.appendChild (ensemble->toValueTree(), nullptr);
+    v.appendChild (midiLearn->toValueTree(), nullptr);
     return v;
 }
 
@@ -483,6 +486,7 @@ void Session::fromValueTree (const juce::ValueTree& v)
     }
 
     ensemble->fromValueTree (v.getChildWithName ("Ensemble"));
+    midiLearn->fromValueTree (v.getChildWithName ("MidiLearn"));
 
     if (auto in = v.getProperty ("midiIn").toString(); in.isNotEmpty())
         device.openInput (in);

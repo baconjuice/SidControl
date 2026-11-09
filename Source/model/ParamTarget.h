@@ -7,6 +7,8 @@
 
 #include <juce_events/juce_events.h>
 
+class MidiLearn;
+
 class ParamTarget
 {
 public:
@@ -34,6 +36,11 @@ public:
         d.bits = 8;
         setParam (d, value);
     }
+
+    // MIDI learn support: the shared MidiLearn and the scope controls of this
+    // target are learned in (engine number, or MidiLearn::kEnsembleScope).
+    virtual MidiLearn* getMidiLearn() { return nullptr; }
+    virtual int learnScope() const { return -1; }
 
     void addTargetListener (Listener* l) { targetListeners.add (l); }
     void removeTargetListener (Listener* l) { targetListeners.remove (l); }

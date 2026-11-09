@@ -19,6 +19,9 @@ public:
     int getParam (const sid::ParamDef& p) const override { return ens.getRaw (p); }
     void setParam (const sid::ParamDef& p, int raw, uint8_t writeOption = 0) override;
 
+    MidiLearn* getMidiLearn() override;
+    int learnScope() const override { return 4; } // MidiLearn::kEnsembleScope
+
     const sid::Ensemble& data() const { return ens; }
     bool hasData() const { return loaded; }
 

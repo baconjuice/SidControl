@@ -55,6 +55,12 @@ fetch, store, send and `.syx` buttons (the **Ensemble** button in the patch head
 Keyboard play-through: MIDI from the standalone app's "Active MIDI Inputs" or from the DAW track
 goes to the SID. You can remap it to one channel with the **Keys** menu.
 
+MIDI learn: right-click any knob, button or menu and choose **MIDI Learn**, then move a control on your
+keyboard or controller. Mapped controls show a small amber dot, and their tooltip names the CC.
+Mappings belong to one engine (the same knob can control a different parameter in Lead and in Drum)
+or to the ensemble. Mapped CCs change the editor and are not passed through to the SID. Unmapped CCs
+pass through as before. Mappings are saved with the app settings or the DAW project.
+
 `sidcli` (built with the app) is a diagnostics tool: `list`, `scan`, `ping`, `get`, `getens`, `play`, `monitor`.
 
 ## Layout

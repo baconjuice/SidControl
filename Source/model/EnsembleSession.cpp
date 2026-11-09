@@ -1,4 +1,5 @@
 #include "EnsembleSession.h"
+#include "MidiLearn.h"
 #include "Session.h"
 
 #include "sid/SyxFile.h"
@@ -174,4 +175,9 @@ void EnsembleSession::fromValueTree (const juce::ValueTree& v)
         loaded = true;
     }
     notifyReplaced();
+}
+
+MidiLearn* EnsembleSession::getMidiLearn()
+{
+    return session.getMidiLearn();
 }

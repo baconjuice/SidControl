@@ -44,6 +44,7 @@ target_sources(SidControl PRIVATE
     Source/device/SidDevice.cpp
     Source/model/Session.cpp
     Source/model/EnsembleSession.cpp
+    Source/model/MidiLearn.cpp
     Source/ui/ParamControls.cpp
     Source/ui/ConnectionBar.cpp
     Source/ui/LibraryPanel.cpp
@@ -79,6 +80,16 @@ enable_testing()
 add_executable(sid_tests Tests/CoreTests.cpp)
 target_link_libraries(sid_tests PRIVATE sid_core)
 add_test(NAME sid_tests COMMAND sid_tests)
+
+# MIDI learn end to end (device + session, no MIDI ports needed)
+juce_add_console_app(learn_tests PRODUCT_NAME "learn_tests")
+target_sources(learn_tests PRIVATE Tests/LearnTests.cpp Source/device/SidDevice.cpp Source/model/Session.cpp
+               Source/model/EnsembleSession.cpp Source/model/MidiLearn.cpp)
+target_include_directories(learn_tests PRIVATE Source)
+target_compile_definitions(learn_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
+target_link_libraries(learn_tests PRIVATE sid_core juce::juce_audio_devices juce::juce_data_structures juce::juce_events
+                      juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+add_test(NAME learn_tests COMMAND learn_tests)
 
 # ---------------------------------------------------------------------------
 # sidcli: command-line diagnostics (port scan, ping, edit buffer read)

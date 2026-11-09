@@ -15,6 +15,7 @@
 
 #include <juce_audio_devices/juce_audio_devices.h>
 
+#include <array>
 #include <atomic>
 #include <deque>
 #include <functional>
@@ -47,6 +48,14 @@ public:
     // Play-through from a keyboard or DAW track. Called on the audio thread:
     // forwards notes, controllers, pitch bend etc. (not SysEx) to the SID.
     void forwardMidi (const juce::MidiBuffer& buffer);
+
+    // MIDI learn: controllers that are mapped (or all of them while learning)
+    // are taken out of the play-through and reported via sidController()
+    // on the message thread instead. Channel 1..16, cc 0..127.
+    void setControllerMapped (int channel, int cc, bool mapped);
+    void clearControllerMappings();
+    void setLearning (bool shouldLearn) { learning = shouldLearn; }
+    bool isLearning() const { return learning.load(); }
 
     // 0 = keep the incoming channel, 1..16 = send everything on that channel.
     void setKeyboardChannel (int ch) { keyboardChannel = juce::jlimit (0, 16, ch); }
@@ -81,6 +90,8 @@ public:
         virtual void sidActivity (bool outgoing) { juce::ignoreUnused (outgoing); }
         virtual void sidLog (const juce::String&) {}
         virtual void sidPortsChanged() {}
+        // A controller taken by MIDI learn (see setControllerMapped). channel 1..16.
+        virtual void sidController (int channel, int cc, int value) { juce::ignoreUnused (channel, cc, value); }
     };
     void addListener (Listener* l) { listeners.add (l); }
     void removeListener (Listener* l) { listeners.remove (l); }
@@ -120,6 +131,12 @@ private:
     juce::uint32 lastParamSendAt = 0;
     std::atomic<juce::uint32> lastInputActivity { 0 }, lastOutputActivity { 0 };
     std::atomic<int> keyboardChannel { 0 };
+    std::atomic<bool> learning { false };
+    std::array<std::atomic<bool>, 16 * 128> mappedControllers {};
+    juce::AbstractFifo controllerFifo { 1024 };
+    std::array<uint32_t, 1024> controllerEvents {}; // channel << 16 | cc << 8 | value
+    void pushController (int channel, int cc, int value);
+    void drainControllers();
     juce::SpinLock outputLock; // output is used from the message and audio threads
     std::deque<Job> jobs;
     std::deque<std::pair<sid::Patch, juce::uint32>> recentlySentDumps; // to ignore a MIDI merger echo

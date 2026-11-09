@@ -3,6 +3,7 @@
 // Controls bound to one patch parameter. They update themselves when the
 // edit buffer changes and write through the Session (which sends live edits).
 
+#include "model/MidiLearn.h"
 #include "model/ParamTarget.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -14,8 +15,44 @@ namespace ui
 using WriteOptionFn = std::function<uint8_t()>;
 using FormatFn = std::function<juce::String (int displayValue)>;
 
+// A widget whose right-click opens our MIDI learn menu instead of acting
+// like a left click (sliders would start a drag, buttons would toggle).
+template <class Base>
+class RightClickable : public Base
+{
+public:
+    using Base::Base;
+    std::function<void()> onPopupMenu;
+
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        swallowing = e.mods.isPopupMenu() && onPopupMenu != nullptr;
+        if (swallowing)
+            onPopupMenu();
+        else
+            Base::mouseDown (e);
+    }
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        if (! swallowing) Base::mouseDrag (e);
+    }
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        if (! swallowing) Base::mouseUp (e);
+        swallowing = false;
+    }
+    void mouseDoubleClick (const juce::MouseEvent& e) override
+    {
+        if (! e.mods.isPopupMenu()) Base::mouseDoubleClick (e);
+    }
+
+private:
+    bool swallowing = false;
+};
+
 class ParamControl : public juce::Component,
-                     protected ParamTarget::Listener
+                     protected ParamTarget::Listener,
+                     private MidiLearn::Listener
 {
 public:
     ParamControl (ParamTarget& s, const sid::ParamDef& d);
@@ -24,11 +61,18 @@ public:
     virtual juce::Point<int> preferredSize() const = 0;
     void setWriteOption (WriteOptionFn f) { writeOption = std::move (f); }
     const sid::ParamDef& getDef() const { return def; }
+    void paintOverChildren (juce::Graphics&) override;
 
 protected:
     void targetReplaced() override { refresh(); }
     void targetChanged (const std::vector<uint16_t>& addresses) override;
     virtual void refresh() = 0;
+
+    // MIDI learn: right-click menu, tooltip with the mapping, mapped marker.
+    void showLearnMenu();
+    void setBaseTooltip (juce::String t) { baseTooltip = std::move (t); updateTooltip(); }
+    virtual void applyTooltip (const juce::String&) {}
+    template <class W> void enableLearnMenu (W& widget) { widget.onPopupMenu = [this] { showLearnMenu(); }; }
 
     void write (int raw);
     int read() const { return session.getParam (def); }
@@ -36,6 +80,12 @@ protected:
     ParamTarget& session;
     const sid::ParamDef& def;
     WriteOptionFn writeOption;
+
+private:
+    void midiLearnChanged() override;
+    void updateTooltip();
+    MidiLearn* learn = nullptr;
+    juce::String baseTooltip;
 };
 
 class ParamKnob : public ParamControl
@@ -49,8 +99,9 @@ public:
     void setCompact (bool c) { compact = c; title.setVisible (! c); resized(); }
 
 private:
+    void applyTooltip (const juce::String& t) override { slider.setTooltip (t); }
     juce::Label title;
-    juce::Slider slider;
+    RightClickable<juce::Slider> slider;
     FormatFn formatter;
     bool compact = false;
 };
@@ -64,7 +115,8 @@ public:
     void refresh() override { button.setToggleState (read() != 0, juce::dontSendNotification); }
 
 private:
-    juce::TextButton button;
+    void applyTooltip (const juce::String& t) override { button.setTooltip (t); }
+    RightClickable<juce::TextButton> button;
 };
 
 class ParamCombo : public ParamControl
@@ -78,8 +130,9 @@ public:
     void setCompact (bool c) { compact = c; title.setVisible (! c); resized(); }
 
 private:
+    void applyTooltip (const juce::String& t) override { box.setTooltip (t); }
     juce::Label title;
-    juce::ComboBox box;
+    RightClickable<juce::ComboBox> box;
     int width;
     bool compact = false;
 };

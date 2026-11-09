@@ -11,11 +11,85 @@ namespace ui
 ParamControl::ParamControl (ParamTarget& s, const sid::ParamDef& d) : session (s), def (d)
 {
     session.addTargetListener (this);
+    learn = session.getMidiLearn();
+    if (learn != nullptr)
+        learn->addListener (this);
 }
 
 ParamControl::~ParamControl()
 {
+    if (learn != nullptr)
+        learn->removeListener (this);
     session.removeTargetListener (this);
+}
+
+void ParamControl::showLearnMenu()
+{
+    if (learn == nullptr)
+        return;
+    auto* ml = learn;
+    const int scope = session.learnScope();
+    const std::string id = def.id;
+
+    juce::PopupMenu menu;
+    menu.addSectionHeader (def.name);
+    if (ml->isLearning (scope, id))
+        menu.addItem ("Cancel MIDI Learn", [ml] { ml->stopLearning(); });
+    else
+    {
+        const uint8_t wopt = writeOption ? writeOption() : (uint8_t) 0;
+        menu.addItem ("MIDI Learn", [ml, scope, id, wopt] { ml->startLearning (scope, id, wopt); });
+    }
+    if (const auto* m = ml->find (scope, id))
+        menu.addItem ("Forget " + MidiLearn::describe (*m), [ml, scope, id] { ml->forget (scope, id); });
+    if (! ml->all().empty())
+    {
+        menu.addSeparator();
+        menu.addItem ("Forget All MIDI Mappings (" + juce::String ((int) ml->all().size()) + ")", [ml]
+                      {
+                          auto opts = juce::MessageBoxOptions()
+                                          .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                          .withTitle ("MIDI learn")
+                                          .withMessage ("Remove all " + juce::String ((int) ml->all().size())
+                                                        + " MIDI mappings, for every engine and the ensemble?")
+                                          .withButton ("Remove All", 1)
+                                          .withButton ("Cancel", 0);
+                          juce::AlertWindow::showAsync (opts, [ml] (int r) { if (r == 1) ml->clearAll(); });
+                      });
+    }
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this));
+}
+
+void ParamControl::midiLearnChanged()
+{
+    updateTooltip();
+    repaint();
+}
+
+void ParamControl::updateTooltip()
+{
+    auto t = baseTooltip;
+    if (learn != nullptr)
+        if (const auto* m = learn->find (session.learnScope(), def.id))
+            t << "\nMIDI: " << MidiLearn::describe (*m);
+    applyTooltip (t);
+}
+
+void ParamControl::paintOverChildren (juce::Graphics& g)
+{
+    if (learn == nullptr)
+        return;
+    const int scope = session.learnScope();
+    if (learn->isLearning (scope, def.id))
+    {
+        g.setColour (colours::accent2);
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), 4.0f, 2.0f);
+    }
+    else if (learn->find (scope, def.id) != nullptr)
+    {
+        g.setColour (colours::accent2);
+        g.fillEllipse ((float) getWidth() - 7.0f, 1.0f, 5.0f, 5.0f);
+    }
 }
 
 void ParamControl::targetChanged (const std::vector<uint16_t>& addresses)
@@ -55,7 +129,8 @@ ParamKnob::ParamKnob (ParamTarget& s, const sid::ParamDef& d, juce::String label
     if (formatter)
         slider.textFromValueFunction = [this] (double v) { return formatter ((int) v); };
     slider.onValueChange = [this] { write ((int) slider.getValue() + def.offset); };
-    slider.setTooltip (juce::String (d.name) + " (0x" + juce::String::toHexString ((int) d.addr).paddedLeft ('0', 3) + ")");
+    setBaseTooltip (juce::String (d.name) + " (0x" + juce::String::toHexString ((int) d.addr).paddedLeft ('0', 3) + ")");
+    enableLearnMenu (slider);
     addAndMakeVisible (slider);
     refresh();
 }
@@ -82,8 +157,9 @@ ParamToggle::ParamToggle (ParamTarget& s, const sid::ParamDef& d, juce::String l
     button.setButtonText (label.isNotEmpty() ? label : juce::String (d.name));
     button.setClickingTogglesState (true);
     button.onClick = [this] { write (button.getToggleState() ? 1 : 0); };
-    button.setTooltip (juce::String (d.name) + " (0x" + juce::String::toHexString ((int) d.addr).paddedLeft ('0', 3)
-                       + " bit " + juce::String (d.shift) + ")");
+    setBaseTooltip (juce::String (d.name) + " (0x" + juce::String::toHexString ((int) d.addr).paddedLeft ('0', 3)
+                    + " bit " + juce::String (d.shift) + ")");
+    enableLearnMenu (button);
     addAndMakeVisible (button);
     refresh();
 }
@@ -119,6 +195,8 @@ ParamCombo::ParamCombo (ParamTarget& s, const sid::ParamDef& d, juce::String lab
             box.addItem (choices[i], (int) i + 1);
     }
     box.onChange = [this] { write (box.getSelectedId() - 1); };
+    setBaseTooltip (juce::String (d.name) + " (0x" + juce::String::toHexString ((int) d.addr).paddedLeft ('0', 3) + ")");
+    enableLearnMenu (box);
     addAndMakeVisible (box);
     refresh();
 }

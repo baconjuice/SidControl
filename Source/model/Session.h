@@ -15,6 +15,7 @@
 #include <optional>
 
 class EnsembleSession;
+class MidiLearn;
 
 class Session : public ParamTarget,
                 private SidDevice::Listener
@@ -88,6 +89,9 @@ public:
     // The ensemble being edited (separate from the patch).
     EnsembleSession& getEnsemble() { return *ensemble; }
 
+    MidiLearn* getMidiLearn() override { return midiLearn.get(); }
+    int learnScope() const override { return (int) engine(); }
+
     juce::String getStatus() const { return status; }
     void setStatus (const juce::String& s, float newProgress = -1.0f);
     float getProgress() const { return progress; } // 0..1, < 0 when idle
@@ -117,5 +121,6 @@ private:
 
     juce::ListenerList<Listener> listeners;
     std::unique_ptr<EnsembleSession> ensemble;
+    std::unique_ptr<MidiLearn> midiLearn;
     JUCE_DECLARE_WEAK_REFERENCEABLE (Session)
 };

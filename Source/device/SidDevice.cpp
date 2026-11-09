@@ -122,24 +122,79 @@ void SidDevice::forwardMidi (const juce::MidiBuffer& buffer)
         return;
 
     const int channel = keyboardChannel.load();
+    const bool learnAll = learning.load();
     bool sent = false;
+    for (const auto meta : buffer)
     {
+        auto m = meta.getMessage();
+        if (m.isSysEx() || m.isActiveSense() || m.isMetaEvent())
+            continue;
+
+        // Controllers used by MIDI learn edit the patch instead of reaching
+        // the SID directly. Channel mode messages (120..127) always pass.
+        if (m.isController() && m.getControllerNumber() < 120)
+        {
+            const int ch = m.getChannel(), cc = m.getControllerNumber();
+            if (learnAll || mappedControllers[(size_t) ((ch - 1) * 128 + cc)].load())
+            {
+                pushController (ch, cc, m.getControllerValue());
+                continue;
+            }
+        }
+
+        if (channel > 0 && m.getChannel() > 0)
+            m.setChannel (channel);
         const juce::SpinLock::ScopedLockType lock (outputLock);
         if (output == nullptr)
-            return;
-        for (const auto meta : buffer)
-        {
-            auto m = meta.getMessage();
-            if (m.isSysEx() || m.isActiveSense() || m.isMetaEvent())
-                continue;
-            if (channel > 0 && m.getChannel() > 0)
-                m.setChannel (channel);
-            output->sendMessageNow (m);
-            sent = true;
-        }
+            continue;
+        output->sendMessageNow (m);
+        sent = true;
     }
     if (sent)
         lastOutputActivity = juce::Time::getMillisecondCounter();
+}
+
+void SidDevice::setControllerMapped (int channel, int cc, bool mapped)
+{
+    if (channel >= 1 && channel <= 16 && cc >= 0 && cc < 128)
+        mappedControllers[(size_t) ((channel - 1) * 128 + cc)] = mapped;
+}
+
+void SidDevice::clearControllerMappings()
+{
+    for (auto& m : mappedControllers)
+        m = false;
+}
+
+void SidDevice::pushController (int channel, int cc, int value)
+{
+    // Audio thread (or MIDI thread): single producer.
+    const auto scope = controllerFifo.write (1);
+    if (scope.blockSize1 > 0)
+        controllerEvents[(size_t) scope.startIndex1] = (uint32_t) (channel << 16 | cc << 8 | value);
+}
+
+void SidDevice::drainControllers()
+{
+    // Only the latest value per controller matters.
+    std::map<int, int> latest; // channel << 8 | cc -> value
+    std::vector<int> order;
+    const auto scope = controllerFifo.read (controllerFifo.getNumReady());
+    auto take = [&] (int start, int size)
+    {
+        for (int i = start; i < start + size; ++i)
+        {
+            const auto e = controllerEvents[(size_t) i];
+            const int key = (int) (e >> 8);
+            if (latest.find (key) == latest.end())
+                order.push_back (key);
+            latest[key] = (int) (e & 0x7f);
+        }
+    };
+    take (scope.startIndex1, scope.blockSize1);
+    take (scope.startIndex2, scope.blockSize2);
+    for (auto key : order)
+        listeners.call ([&] (Listener& l) { l.sidController (key >> 8, key & 0x7f, latest[key]); });
 }
 
 void SidDevice::queueParameter (uint16_t addr, uint8_t value, uint8_t writeOption)
@@ -308,6 +363,8 @@ void SidDevice::handleSysEx (const std::vector<uint8_t>& bytes)
 
 void SidDevice::timerCallback()
 {
+    drainControllers();
+
     const bool requestInFlight = ! jobs.empty() && jobs.front().started && jobs.front().expect != Expect::Nothing;
 
     // Rate limited live parameter writes (held back while a request waits for its reply).
