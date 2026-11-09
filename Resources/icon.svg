@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c3140"/>
+      <stop offset="1" stop-color="#14161b"/>
+    </linearGradient>
+    <radialGradient id="glowbg" cx="0.5" cy="0.33" r="0.55">
+      <stop offset="0" stop-color="#6c8cff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#6c8cff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="chip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2c33"/>
+      <stop offset="1" stop-color="#0d0e11"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8d93a3"/>
+      <stop offset="0.5" stop-color="#e4e7ee"/>
+      <stop offset="1" stop-color="#7a8090"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="amberglow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+    <clipPath id="body"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+  </defs>
+
+  <!-- body -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <g clip-path="url(#body)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#glowbg)"/>
+    <!-- scope grid -->
+    <g stroke="#6c8cff" stroke-opacity="0.10" stroke-width="3">
+      <line x1="100" y1="210" x2="924" y2="210"/><line x1="100" y1="330" x2="924" y2="330"/>
+      <line x1="100" y1="450" x2="924" y2="450"/>
+      <line x1="272" y1="100" x2="272" y2="520"/><line x1="408" y1="100" x2="408" y2="520"/>
+      <line x1="512" y1="100" x2="512" y2="520"/><line x1="616" y1="100" x2="616" y2="520"/>
+      <line x1="752" y1="100" x2="752" y2="520"/>
+    </g>
+    <!-- waveform -->
+    <path d="M150,450 L215.2,210 L280.3,450 L345.5,210 L410.6,450 L526.5,210 L526.5,450 L642.3,210 L642.3,450 L642.3,210 L694.4,210 L694.4,450 L758.2,450 L758.2,210 L810.3,210 L810.3,450 L874.0,450" fill="none" stroke="#6c8cff" stroke-width="16" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)"/>
+    <path d="M150,450 L215.2,210 L280.3,450 L345.5,210 L410.6,450 L526.5,210 L526.5,450 L642.3,210 L642.3,450 L642.3,210 L694.4,210 L694.4,450 L758.2,450 L758.2,210 L810.3,210 L810.3,450 L874.0,450" fill="none" stroke="#dfe6ff" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="184" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="3"/>
+
+  <!-- SID chip -->
+  <g filter="url(#shadow)">
+    <rect x="251.0" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="251.0" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="289.5" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="289.5" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="327.9" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="327.9" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="366.4" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="366.4" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="404.8" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="404.8" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="443.3" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="443.3" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="481.8" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="481.8" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="520.2" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="520.2" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="558.7" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="558.7" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="597.2" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="597.2" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="635.6" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="635.6" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="674.1" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="674.1" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="712.5" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="712.5" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="751.0" y="526" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="751.0" y="794" width="22" height="40" rx="4" fill="url(#pin)"/>
+    <rect x="232" y="560" width="560" height="240" rx="18" fill="url(#chip)"/>
+    <rect x="233.5" y="561.5" width="557" height="237" rx="17" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="3"/>
+    <!-- notch and pin 1 dot -->
+    <path d="M232 646.0 A34 34 0 0 1 232 714.0 Z" fill="#08090b" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+    <circle cx="280" cy="756" r="13" fill="#050506" stroke="#ffffff" stroke-opacity="0.1" stroke-width="2"/>
+    <text x="526.0" y="712" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial" font-weight="800"
+          font-size="150" letter-spacing="10" fill="#ffb454" filter="url(#amberglow)">SID</text>
+    <text x="526.0" y="765" text-anchor="middle" font-family="Menlo, Courier" font-weight="700"
+          font-size="38" letter-spacing="8" fill="#8a90a0">6581 · 8580</text>
+  </g>
+</svg>

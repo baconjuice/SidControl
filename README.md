@@ -1,3 +1,5 @@
+<img src="Resources/icon.png" width="128" align="right" alt="SidControl icon">
+
 # SidControl
 
 Editor and librarian for the **MIDIbox SID V2** (PIC18F core). It runs as a standalone Mac app, or as an AU or VST3 plugin.
