@@ -14,10 +14,22 @@ ParamControl::ParamControl (ParamTarget& s, const sid::ParamDef& d) : session (s
     learn = session.getMidiLearn();
     if (learn != nullptr)
         learn->addListener (this);
+    // DAW automation slots only make sense inside a DAW.
+    if (! juce::JUCEApplicationBase::isStandaloneApp())
+        automation = session.getAutomation();
+    if (automation != nullptr)
+        automation->addListener (this);
+}
+
+int ParamControl::automationSlot() const
+{
+    return automation != nullptr ? automation->slotFor (session.learnScope(), def.id) : -1;
 }
 
 ParamControl::~ParamControl()
 {
+    if (automation != nullptr)
+        automation->removeListener (this);
     if (learn != nullptr)
         learn->removeListener (this);
     session.removeTargetListener (this);
@@ -42,6 +54,23 @@ void ParamControl::showLearnMenu()
     }
     if (const auto* m = ml->find (scope, id))
         menu.addItem ("Forget " + MidiLearn::describe (*m), [ml, scope, id] { ml->forget (scope, id); });
+    if (automation != nullptr)
+    {
+        auto* au = automation;
+        const int current = automationSlot();
+        const uint8_t wopt = writeOption ? writeOption() : (uint8_t) 0;
+        juce::PopupMenu slotsMenu;
+        for (int i = 0; i < au->numSlots(); ++i)
+            slotsMenu.addItem (au->slotLabel (i), true, i == current,
+                               [au, i, scope, id, wopt] { au->assign (i, scope, id, wopt); });
+        slotsMenu.addSeparator();
+        slotsMenu.addItem ("Reset All Slots to Defaults", [au, scope] { au->resetToDefaults (scope); });
+        menu.addSeparator();
+        menu.addSubMenu (current >= 0 ? "DAW Automation: Slot " + juce::String (current + 1) : juce::String ("DAW Automation Slot"),
+                         slotsMenu);
+        if (current >= 0)
+            menu.addItem ("Remove from DAW Slot " + juce::String (current + 1), [au, scope, id] { au->unassign (scope, id); });
+    }
     if (! ml->all().empty())
     {
         menu.addSeparator();
@@ -72,11 +101,18 @@ void ParamControl::updateTooltip()
     if (learn != nullptr)
         if (const auto* m = learn->find (session.learnScope(), def.id))
             t << "\nMIDI: " << MidiLearn::describe (*m);
+    if (const int slot = automationSlot(); slot >= 0)
+        t << "\nDAW automation: Slot " << (slot + 1);
     applyTooltip (t);
 }
 
 void ParamControl::paintOverChildren (juce::Graphics& g)
 {
+    if (automationSlot() >= 0)
+    {
+        g.setColour (colours::accent);
+        g.fillEllipse ((float) getWidth() - 14.0f, 1.0f, 5.0f, 5.0f);
+    }
     if (learn == nullptr)
         return;
     const int scope = session.learnScope();

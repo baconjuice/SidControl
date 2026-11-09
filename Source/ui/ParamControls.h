@@ -3,6 +3,7 @@
 // Controls bound to one patch parameter. They update themselves when the
 // edit buffer changes and write through the Session (which sends live edits).
 
+#include "model/AutomationLink.h"
 #include "model/MidiLearn.h"
 #include "model/ParamTarget.h"
 
@@ -52,7 +53,8 @@ private:
 
 class ParamControl : public juce::Component,
                      protected ParamTarget::Listener,
-                     private MidiLearn::Listener
+                     private MidiLearn::Listener,
+                     private AutomationLink::Listener
 {
 public:
     ParamControl (ParamTarget& s, const sid::ParamDef& d);
@@ -83,8 +85,11 @@ protected:
 
 private:
     void midiLearnChanged() override;
+    void automationChanged() override { midiLearnChanged(); }
     void updateTooltip();
+    int automationSlot() const;
     MidiLearn* learn = nullptr;
+    AutomationLink* automation = nullptr;
     juce::String baseTooltip;
 };
 

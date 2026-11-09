@@ -1,6 +1,7 @@
 #include "Session.h"
 #include "EnsembleSession.h"
 #include "MidiLearn.h"
+#include "sid/Randomizer.h"
 
 #include <cstring>
 
@@ -91,11 +92,47 @@ void Session::setName (const juce::String& name)
 
 void Session::loadIntoEditor (const Patch& p, int fromSlot)
 {
+    randomHistory.clear();
     editPatch = p;
     sourceSlot = fromSlot;
     fireReplaced();
     if (live)
         sendEditBuffer();
+}
+
+void Session::randomize (const std::string& section, float amount)
+{
+    randomHistory.push_back (editPatch);
+    if (randomHistory.size() > 100)
+        randomHistory.erase (randomHistory.begin());
+    sid::randomize (editPatch, section, amount, rng);
+    fireReplaced();
+    sendEditBufferSoon();
+}
+
+void Session::undoRandom()
+{
+    if (randomHistory.empty())
+        return;
+    editPatch = randomHistory.back();
+    randomHistory.pop_back();
+    fireReplaced();
+    sendEditBufferSoon();
+    setStatus ("Undid random change");
+}
+
+// Quick repeated rolls only send the last result.
+void Session::sendEditBufferSoon()
+{
+    if (! live)
+        return;
+    const int gen = ++sendGeneration;
+    juce::WeakReference<Session> self (this);
+    juce::Timer::callAfterDelay (150, [self, gen]
+                                 {
+                                     if (auto* s = self.get(); s != nullptr && s->sendGeneration == gen)
+                                         s->sendEditBuffer();
+                                 });
 }
 
 void Session::sendEditBuffer()

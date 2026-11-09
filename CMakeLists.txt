@@ -17,7 +17,8 @@ add_library(sid_core STATIC
     Source/sid/InitPatches.cpp
     Source/sid/Params.cpp
     Source/sid/ParamNames.cpp
-    Source/sid/SyxFile.cpp)
+    Source/sid/SyxFile.cpp
+    Source/sid/Randomizer.cpp)
 target_include_directories(sid_core PUBLIC Source)
 target_compile_features(sid_core PUBLIC cxx_std_20)
 
@@ -46,6 +47,7 @@ target_sources(SidControl PRIVATE
     Source/model/Session.cpp
     Source/model/EnsembleSession.cpp
     Source/model/MidiLearn.cpp
+    Source/plugin/Automation.cpp
     Source/ui/ParamControls.cpp
     Source/ui/ConnectionBar.cpp
     Source/ui/LibraryPanel.cpp
@@ -55,6 +57,7 @@ target_sources(SidControl PRIVATE
     Source/ui/DrumEditor.cpp
     Source/ui/MultiEditor.cpp
     Source/ui/EnsembleEditor.cpp
+    Source/ui/RandomPanel.cpp
     Source/ui/LookAndFeel.cpp)
 
 target_compile_definitions(SidControl PUBLIC
@@ -91,6 +94,16 @@ target_compile_definitions(learn_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=
 target_link_libraries(learn_tests PRIVATE sid_core juce::juce_audio_devices juce::juce_data_structures juce::juce_events
                       juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 add_test(NAME learn_tests COMMAND learn_tests)
+
+# DAW automation slots (no host needed)
+juce_add_console_app(automation_tests PRODUCT_NAME "automation_tests")
+target_sources(automation_tests PRIVATE Tests/AutomationTests.cpp Source/plugin/Automation.cpp Source/device/SidDevice.cpp
+               Source/model/Session.cpp Source/model/EnsembleSession.cpp Source/model/MidiLearn.cpp)
+target_include_directories(automation_tests PRIVATE Source)
+target_compile_definitions(automation_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
+target_link_libraries(automation_tests PRIVATE sid_core juce::juce_audio_processors juce::juce_audio_devices
+                      juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+add_test(NAME automation_tests COMMAND automation_tests)
 
 # ---------------------------------------------------------------------------
 # sidcli: command-line diagnostics (port scan, ping, edit buffer read)

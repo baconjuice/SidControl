@@ -8,6 +8,7 @@
 #include <juce_events/juce_events.h>
 
 class MidiLearn;
+class AutomationLink;
 
 class ParamTarget
 {
@@ -41,6 +42,7 @@ public:
     // target are learned in (engine number, or MidiLearn::kEnsembleScope).
     virtual MidiLearn* getMidiLearn() { return nullptr; }
     virtual int learnScope() const { return -1; }
+    virtual AutomationLink* getAutomation() { return nullptr; } // DAW slots (plugin only)
 
     void addTargetListener (Listener* l) { targetListeners.add (l); }
     void removeTargetListener (Listener* l) { targetListeners.remove (l); }

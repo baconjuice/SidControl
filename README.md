@@ -57,6 +57,17 @@ fetch, store, send and `.syx` buttons (the **Ensemble** button in the patch head
 Keyboard play-through: MIDI from the standalone app's "Active MIDI Inputs" or from the DAW track
 goes to the SID. You can remap it to one channel with the **Keys** menu.
 
+Random generator: **Random...** in the patch header works like the RND menu on the box. Click a section
+(All, Osc, Filter, LFO, ENV, Mod, Trigger, Wavetable, Knobs, Ext; Notes/Gates/Slides/Accents for the
+Bassline; Pattern/Drums for the Drum engine) to roll it. It follows the firmware's rules so the results
+stay playable. With **Amount** below 100% it only nudges the current sound. **Undo** steps back through the
+rolls.
+
+DAW automation (plugin): 16 automatable parameters, "slots". Each engine has useful defaults: cutoff,
+resonance, volume, then the most useful parameters of that engine. Right-click any control and choose
+**DAW Automation Slot** to put it on a slot. Slots follow the patch's engine. Edits in the editor are
+recorded by the DAW like knob moves on any synth.
+
 MIDI learn: right-click any knob, button or menu and choose **MIDI Learn**, then move a control on your
 keyboard or controller. Mapped controls show a small amber dot, and their tooltip names the CC.
 Mappings belong to one engine (the same knob can control a different parameter in Lead and in Drum)

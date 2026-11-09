@@ -35,6 +35,7 @@ void SidControlProcessor::getStateInformation (juce::MemoryBlock& destData)
     auto v = session.toValueTree();
     v.setProperty ("editorWidth", editorWidth, nullptr);
     v.setProperty ("editorHeight", editorHeight, nullptr);
+    v.appendChild (automation.toValueTree(), nullptr);
     if (auto xml = v.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -52,12 +53,16 @@ void SidControlProcessor::setStateInformation (const void* data, int sizeInBytes
     if (juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
         session.fromValueTree (v);
+        automation.fromValueTree (v.getChildWithName ("Automation"));
         return;
     }
     juce::MessageManager::callAsync ([this, v, alive = std::weak_ptr<bool> (aliveFlag)]
     {
         if (! alive.expired())
+        {
             session.fromValueTree (v);
+            automation.fromValueTree (v.getChildWithName ("Automation"));
+        }
     });
 }
 

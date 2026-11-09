@@ -33,6 +33,7 @@ private:
     void openSlotInEditor (int row);
     void showSlotMenu (int row);
     int selectedRow() const { return list.getSelectedRow(); }
+    void showStoreDialog (int row);
     void confirmThen (const juce::String& title, const juce::String& text, std::function<void()> action);
 
     Session& session;

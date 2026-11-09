@@ -2,6 +2,7 @@
 
 #include "device/SidDevice.h"
 #include "model/Session.h"
+#include "plugin/Automation.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -38,6 +39,7 @@ public:
 
     SidDevice device;
     Session session { device };
+    Automation automation { *this, session }; // DAW automation slots
 
     // Editor window size, remembered with the state.
     int editorWidth = 1440, editorHeight = 860;

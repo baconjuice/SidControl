@@ -36,15 +36,8 @@ LibraryPanel::LibraryPanel (Session& s) : session (s)
     storeButton.setTooltip ("Store the patch in the editor into the selected slot on the MIDIbox SID");
     storeButton.onClick = [this]
     {
-        const int row = selectedRow();
-        if (row < 0) return;
-        const auto& existing = session.slot (row);
-        if (existing && *existing != session.edit())
-            confirmThen ("Store patch", "Overwrite " + bankLetter (session.getBankNumber()) + juce::String (row + 1).paddedLeft ('0', 3)
-                                            + " (" + juce::String (existing->name()) + ") on the MIDIbox SID?",
-                         [this, row] { session.storeEditToSlot (row); });
-        else
-            session.storeEditToSlot (row);
+        if (const int row = selectedRow(); row >= 0)
+            showStoreDialog (row);
     };
     openButton.onClick = [this] { openSyx(); };
     saveButton.onClick = [this] { saveBank(); };
@@ -156,6 +149,42 @@ void LibraryPanel::showSlotMenu (int row)
                                  break;
                          }
                      });
+}
+
+// Store asks for the name (a random patch or a new one usually needs one)
+// and warns when the slot already holds a different patch.
+void LibraryPanel::showStoreDialog (int row)
+{
+    const auto slotName = bankLetter (session.getBankNumber()) + juce::String (row + 1).paddedLeft ('0', 3);
+    const auto& existing = session.slot (row);
+    juce::String message = "Name the patch and store it in " + slotName + " on the MIDIbox SID.";
+    if (existing && *existing != session.edit())
+        message << "\n\nThis replaces \"" << juce::String (existing->name()).trimEnd() << "\" in " << slotName << ".";
+
+    auto* w = new juce::AlertWindow ("Store patch in " + slotName, message,
+                                     existing ? juce::MessageBoxIconType::WarningIcon : juce::MessageBoxIconType::NoIcon, this);
+    w->addTextEditor ("name", juce::String (session.edit().name()).trimEnd(), "Name");
+    if (auto* ed = w->getTextEditor ("name"))
+    {
+        ed->setInputRestrictions (sid::kNameLength);
+        ed->setSelectAllWhenFocused (true);
+    }
+    w->addButton (existing && *existing != session.edit() ? "Overwrite" : "Store", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    w->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+
+    juce::Component::SafePointer<LibraryPanel> self (this);
+    w->enterModalState (true, juce::ModalCallbackFunction::create ([self, w, row] (int result)
+                        {
+                            if (result != 1 || self == nullptr)
+                                return;
+                            auto name = w->getTextEditorContents ("name").trim();
+                            if (name.isNotEmpty())
+                                self->session.setName (name);
+                            self->session.storeEditToSlot (row);
+                        }),
+                        true);
+    if (auto* ed = w->getTextEditor ("name"))
+        ed->grabKeyboardFocus();
 }
 
 void LibraryPanel::confirmThen (const juce::String& title, const juce::String& text, std::function<void()> action)

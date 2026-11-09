@@ -27,6 +27,7 @@ private:
     void rebuildEngineEditor();
     void refreshHeader();
     void showNewPatchMenu();
+    void showRandomPanel();
     void savePatch();
     void showLog();
     void showEnsemble (bool show);
@@ -43,6 +44,7 @@ private:
     juce::TextEditor nameEditor;
     juce::TextButton ensembleButton { "Ensemble" };
     std::unique_ptr<juce::Component> ensembleEditor;
+    juce::TextButton randomButton { "Random..." };
     juce::TextButton newButton { "New Patch..." }, openButton { "Open .syx" }, savePatchButton { "Save Patch .syx" };
 
     std::unique_ptr<juce::Component> engineEditor;

@@ -13,6 +13,7 @@
 
 #include <array>
 #include <optional>
+#include <random>
 
 class EnsembleSession;
 class MidiLearn;
@@ -43,6 +44,12 @@ public:
     // Replace the whole edit buffer (sends it to the box when live).
     void loadIntoEditor (const sid::Patch& p, int fromSlot = -1);
     int editorSourceSlot() const { return sourceSlot; }
+
+    // Random generator (like the box's RND menu). Keeps the previous patches
+    // so a roll can be undone.
+    void randomize (const std::string& section, float amount);
+    bool canUndoRandom() const { return ! randomHistory.empty(); }
+    void undoRandom();
 
     bool isLive() const { return live; }
     void setLive (bool shouldSendEdits) { live = shouldSendEdits; }
@@ -92,6 +99,9 @@ public:
     MidiLearn* getMidiLearn() override { return midiLearn.get(); }
     int learnScope() const override { return (int) engine(); }
 
+    AutomationLink* getAutomation() override { return automation; }
+    void setAutomation (AutomationLink* a) { automation = a; }
+
     juce::String getStatus() const { return status; }
     void setStatus (const juce::String& s, float newProgress = -1.0f);
     float getProgress() const { return progress; } // 0..1, < 0 when idle
@@ -106,7 +116,12 @@ private:
     void fetchNext (int i, int endExclusive, int got, int failed);
     void writeNext (std::vector<int> remaining, int done, int failed, int total);
 
+    void sendEditBufferSoon();
+
     sid::Patch editPatch = sid::Patch::makeInit (sid::Engine::Lead);
+    std::vector<sid::Patch> randomHistory;
+    std::mt19937 rng { std::random_device{}() };
+    int sendGeneration = 0;
     int sourceSlot = -1;
     bool live = true;
 
@@ -122,5 +137,6 @@ private:
     juce::ListenerList<Listener> listeners;
     std::unique_ptr<EnsembleSession> ensemble;
     std::unique_ptr<MidiLearn> midiLearn;
+    AutomationLink* automation = nullptr;
     JUCE_DECLARE_WEAK_REFERENCEABLE (Session)
 };

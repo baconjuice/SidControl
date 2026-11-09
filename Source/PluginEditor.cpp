@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "ui/RandomPanel.h"
 #include "model/EnsembleSession.h"
 #include "ui/BasslineEditor.h"
 #include "ui/DrumEditor.h"
@@ -42,6 +43,10 @@ SidControlEditor::SidControlEditor (SidControlProcessor& p)
     ensembleEditor = std::make_unique<EnsembleEditor> (session.getEnsemble());
     addChildComponent (*ensembleEditor);
 
+    randomButton.setTooltip ("Random generator: roll new oscillators, filter, LFOs, sequences... (like RND on the box)");
+    randomButton.setColour (juce::TextButton::buttonColourId, colours::accent2.withAlpha (0.25f));
+    randomButton.onClick = [this] { showRandomPanel(); };
+    addAndMakeVisible (randomButton);
     newButton.onClick = [this] { showNewPatchMenu(); };
     openButton.onClick = [this] { library.openSyx(); };
     savePatchButton.onClick = [this] { savePatch(); };
@@ -113,6 +118,26 @@ void SidControlEditor::writeSnapshots (const juce::File& dir)
             session.loadIntoEditor (sid::Patch::makeInit ((sid::Engine) e));
             if (auto* ed = dynamic_cast<EngineEditor*> (engineEditor.get()))
                 saveTabs (*ed, juce::String (sid::engineName ((sid::Engine) e)) + "_");
+
+            // Random generator panel and a fully random patch of this engine.
+            ui::RandomPanel panel (session);
+            panel.setLookAndFeel (&lnf);
+            auto img = panel.createComponentSnapshot (panel.getLocalBounds(), true, 1.0f);
+            juce::Image framed (juce::Image::ARGB, img.getWidth(), img.getHeight(), true);
+            {
+                juce::Graphics g (framed);
+                g.fillAll (ui::colours::panel);
+                g.drawImageAt (img, 0, 0);
+            }
+            juce::FileOutputStream out (dir.getChildFile ("RandomPanel_" + juce::String (sid::engineName ((sid::Engine) e)) + ".png"));
+            out.setPosition (0);
+            out.truncate();
+            juce::PNGImageFormat().writeImageToStream (framed, out);
+            panel.setLookAndFeel (nullptr);
+
+            session.randomize ("all", 1.0f);
+            if (auto* ed = dynamic_cast<EngineEditor*> (engineEditor.get()))
+                saveTabs (*ed, "Random_" + juce::String (sid::engineName ((sid::Engine) e)) + "_");
         }
         // A plausible ensemble: SID1 on channel 1..6, splits over the keyboard.
         sid::Ensemble ens;
@@ -283,6 +308,12 @@ void SidControlEditor::paint (juce::Graphics& g)
     g.drawHorizontalLine (status.getY(), 0.0f, (float) getWidth());
 }
 
+void SidControlEditor::showRandomPanel()
+{
+    auto panel = std::make_unique<ui::RandomPanel> (session);
+    juce::CallOutBox::launchAsynchronously (std::move (panel), randomButton.getBounds(), this);
+}
+
 void SidControlEditor::resized()
 {
     auto r = getLocalBounds();
@@ -310,6 +341,8 @@ void SidControlEditor::resized()
     openButton.setBounds (header.removeFromRight (84).reduced (0, 2));
     header.removeFromRight (6);
     newButton.setBounds (header.removeFromRight (100).reduced (0, 2));
+    header.removeFromRight (6);
+    randomButton.setBounds (header.removeFromRight (90).reduced (0, 2));
     header.removeFromRight (16);
     ensembleButton.setBounds (header.removeFromRight (90).reduced (0, 2));
     main.removeFromTop (6);

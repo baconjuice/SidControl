@@ -2,6 +2,7 @@
 // Usage: sid_tests [file.syx ...]   (extra files are parsed and summarised)
 
 #include "sid/Params.h"
+#include "sid/Randomizer.h"
 #include "sid/SyxFile.h"
 #include "sid/SysEx.h"
 
@@ -271,6 +272,86 @@ static void summariseFile (const char* path)
         std::printf ("   note: re-encoded file differs from original (%zu vs %zu bytes)\n", again.size(), data.size());
 }
 
+static void testRandomizer()
+{
+    std::mt19937 rng (1234);
+    const auto& L = leadParams();
+
+    // Every section of every engine: engine and name survive, dumps stay valid.
+    for (int e = 0; e < 4; ++e)
+        for (auto& sec : randomSections ((Engine) e))
+            for (float amount : { 1.0f, 0.3f })
+                for (int i = 0; i < 20; ++i)
+                {
+                    auto p = Patch::makeInit ((Engine) e);
+                    p.setName ("Keep Me");
+                    randomize (p, sec.id, amount, rng);
+                    CHECK (p.engine() == (Engine) e);
+                    CHECK (p.name() == "Keep Me");
+                    const auto bytes = sysex::writeEditBuffer (0, p);
+                    const auto msg = sysex::parse (bytes.data(), bytes.size());
+                    CHECK (msg && msg->kind == sysex::Message::Kind::PatchDump && msg->patch == p);
+                }
+
+    // Filter: only the filter bytes change, cutoff in the lower quarter, same routing L/R.
+    for (int i = 0; i < 50; ++i)
+    {
+        const auto before = Patch::makeInit (Engine::Lead);
+        auto p = before;
+        randomize (p, "fil", 1.0f, rng);
+        for (int a = 0; a < kPatchSize; ++a)
+            if (a < 0x54 || a > 0x5f) CHECK (p.byte (a) == before.byte (a));
+        CHECK (p.getRaw (L.get ("fL.cutoff")) >= 0x400 && p.getRaw (L.get ("fL.cutoff")) <= 0x4ff);
+        CHECK (p.getRaw (L.get ("fL.lp")) == p.getRaw (L.get ("fR.lp")));
+        CHECK (p.getRaw (L.get ("fL.ext")) == 0);
+    }
+
+    // Lead oscillators: playable tuning, no arp / delay, right SID mirrors the left.
+    for (int i = 0; i < 50; ++i)
+    {
+        auto p = Patch::makeInit (Engine::Lead);
+        randomize (p, "osc", 1.0f, rng);
+        const int tr = p.getRaw (L.get ("v1.transpose"));
+        CHECK (tr == 0x34 || tr == 0x40 || tr == 0x4c || tr == 0x58);
+        CHECK (std::abs (p.getRaw (L.get ("v2.finetune")) - 0x80) <= 10);
+        CHECK (p.getRaw (L.get ("v3.arp.on")) == 0 && p.getRaw (L.get ("v1.delay")) == 0);
+        CHECK (p.getRaw (L.get ("v4.pw")) == p.getRaw (L.get ("v1.pw")));
+        CHECK (p.getRaw (L.get ("v6.saw")) == p.getRaw (L.get ("v3.saw")));
+        for (int a = 0x100; a < kPatchSize; ++a) CHECK (p.byte (a) == Patch::makeInit (Engine::Lead).byte (a));
+    }
+
+    // Bassline notes stay within an octave; only the low nibbles of the playing sequence change.
+    {
+        auto p = Patch::makeInit (Engine::Bassline);
+        const auto before = p;
+        randomize (p, "nte", 1.0f, rng);
+        const int seq = p.getRaw (basslineParams().get ("bL.seq.num")) & 7;
+        for (int s = 0; s < 16; ++s)
+        {
+            CHECK ((p.byte (0x100 + seq * 16 + s) & 0x0f) <= 12);
+            CHECK ((p.byte (0x100 + seq * 16 + s) & 0xc0) == (before.byte (0x100 + seq * 16 + s) & 0xc0));
+        }
+    }
+
+    // A small amount changes less than a full roll.
+    {
+        int diffSmall = 0, diffFull = 0;
+        for (int i = 0; i < 20; ++i)
+        {
+            auto a = Patch::makeInit (Engine::Lead), b = a;
+            randomize (a, "all", 0.1f, rng);
+            randomize (b, "all", 1.0f, rng);
+            const auto init = Patch::makeInit (Engine::Lead);
+            for (int x = 0; x < kPatchSize; ++x)
+            {
+                diffSmall += std::abs (a.byte (x) - init.byte (x));
+                diffFull += std::abs (b.byte (x) - init.byte (x));
+            }
+        }
+        CHECK (diffSmall * 3 < diffFull);
+    }
+}
+
 int main (int argc, char** argv)
 {
     testInitPatches();
@@ -283,6 +364,7 @@ int main (int argc, char** argv)
     testLinks();
     testEngineTables();
     testEnsemble();
+    testRandomizer();
     for (int i = 1; i < argc; ++i)
         summariseFile (argv[i]);
 
