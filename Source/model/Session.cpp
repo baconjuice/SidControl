@@ -285,7 +285,21 @@ void Session::fetchNext (int i, int endExclusive, int got, int failed)
                         }
                         else if (r.reply != nullptr)
                         {
-                            // The box answered with an error (e.g. 32k BankStick has only 64 patches): skip.
+                            // The box answered with an error (e.g. 32k BankStick has only 64
+                            // patches). Don't leave the previous fetch's patch in this slot.
+                            if (i == 0 && r.reply->kind == sysex::Message::Kind::Error && r.reply->value == 0x0a)
+                            {
+                                // No BankStick for this bank at all.
+                                for (auto& slot : s->slots)
+                                    slot.reset();
+                                s->listeners.call ([] (Listener& l) { l.bankChanged(); });
+                                s->busy = false;
+                                s->setStatus ("Bank " + juce::String::charToString ((juce::juce_wchar) ('A' + s->bankNumber))
+                                              + " is not available on the box (no BankStick for it)");
+                                return;
+                            }
+                            s->slots[(size_t) i].reset();
+                            s->listeners.call ([] (Listener& l) { l.bankChanged(); });
                             s->fetchNext (i + 1, endExclusive, got, failed + 1);
                         }
                         else
