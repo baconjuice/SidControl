@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(SidControl VERSION 0.1.0 LANGUAGES C CXX)
+project(SidControl VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -113,3 +113,14 @@ target_sources(sidcli PRIVATE Tools/SidCli.cpp Source/device/SidDevice.cpp)
 target_compile_definitions(sidcli PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
 target_link_libraries(sidcli PRIVATE sid_core juce::juce_audio_devices juce::juce_events
                       juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+
+# Sign each bundle (ad-hoc) as the very last build step, so the signature
+# always covers the final contents (icon, moduleinfo). Apple Silicon Macs
+# refuse unsigned code, and hosts reject bundles whose signature is stale.
+if(APPLE)
+    foreach(fmt Standalone AU VST3)
+        add_custom_command(TARGET SidControl_${fmt} POST_BUILD
+            COMMAND codesign --force --sign - --timestamp=none "$<TARGET_BUNDLE_DIR:SidControl_${fmt}>"
+            VERBATIM)
+    endforeach()
+endif()
