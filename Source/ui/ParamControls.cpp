@@ -21,6 +21,23 @@ ParamControl::ParamControl (ParamTarget& s, const sid::ParamDef& d) : session (s
         automation->addListener (this);
 }
 
+void ParamControl::beginGesture()
+{
+    if (automation != nullptr && gestureId.empty())
+    {
+        gestureScope = session.learnScope();
+        gestureId = def.id;
+        automation->beginGesture (gestureScope, gestureId);
+    }
+}
+
+void ParamControl::endGesture()
+{
+    if (automation != nullptr && ! gestureId.empty())
+        automation->endGesture (gestureScope, gestureId); // the same slot it began on
+    gestureId.clear();
+}
+
 int ParamControl::automationSlot() const
 {
     return automation != nullptr ? automation->slotFor (session.learnScope(), def.id) : -1;
@@ -28,6 +45,7 @@ int ParamControl::automationSlot() const
 
 ParamControl::~ParamControl()
 {
+    endGesture();
     if (automation != nullptr)
         automation->removeListener (this);
     if (learn != nullptr)
@@ -165,6 +183,8 @@ ParamKnob::ParamKnob (ParamTarget& s, const sid::ParamDef& d, juce::String label
     if (formatter)
         slider.textFromValueFunction = [this] (double v) { return formatter ((int) v); };
     slider.onValueChange = [this] { write ((int) slider.getValue() + def.offset); };
+    slider.onDragStart = [this] { beginGesture(); };
+    slider.onDragEnd = [this] { endGesture(); };
     setBaseTooltip (juce::String (d.name) + " (0x" + juce::String::toHexString ((int) d.addr).paddedLeft ('0', 3) + ")");
     enableLearnMenu (slider);
     addAndMakeVisible (slider);

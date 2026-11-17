@@ -242,6 +242,18 @@ float Automation::normalised (const sid::ParamDef& d) const
     return d.maxRaw() > 0 ? (float) session.getParam (d) / (float) d.maxRaw() : 0.0f;
 }
 
+void Automation::beginGesture (int engine, const std::string& paramId)
+{
+    if (const int slot = slotFor (engine, paramId); slot >= 0 && params[(size_t) slot] != nullptr)
+        params[(size_t) slot]->beginChangeGesture();
+}
+
+void Automation::endGesture (int engine, const std::string& paramId)
+{
+    if (const int slot = slotFor (engine, paramId); slot >= 0 && params[(size_t) slot] != nullptr)
+        params[(size_t) slot]->endChangeGesture();
+}
+
 void Automation::pushToHost (int slot)
 {
     auto* p = params[(size_t) slot];

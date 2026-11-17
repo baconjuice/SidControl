@@ -56,19 +56,22 @@ void Session::setParam (const ParamDef& p, int raw, uint8_t writeOption)
     if (changed.empty())
         return;
 
+    // Linked voices/filters get the same *parameter* value, not a copy of
+    // the changed byte: a 12-bit pulsewidth whose low byte changed must not
+    // leave the other voices with their own high nibble, and an Attack edit
+    // must not overwrite Decay in the shared byte. Every changed byte is then
+    // sent on its own, so the box ends up exactly like the editor.
     std::vector<uint16_t> all = changed;
-    for (auto addr : changed)
+    for (auto other : sysex::linkedAddresses (editPatch.engine(), p.addr, writeOption))
     {
-        const auto value = editPatch.byte (addr);
-        auto links = sysex::linkedAddresses (editPatch.engine(), addr, writeOption);
-        for (auto other : links)
-        {
-            editPatch.setByte (other, value);
-            all.push_back (other);
-        }
-        if (live)
-            device.queueParameter (addr, value, links.empty() ? sysex::wopt::None : writeOption);
+        auto linked = p;
+        linked.addr = other;
+        for (auto a : editPatch.setRaw (linked, raw))
+            all.push_back (a);
     }
+    if (live)
+        for (auto addr : all)
+            device.queueParameter (addr, editPatch.byte (addr), sysex::wopt::None);
     fireChanged (all);
 }
 

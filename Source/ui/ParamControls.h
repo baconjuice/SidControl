@@ -77,6 +77,10 @@ protected:
     template <class W> void enableLearnMenu (W& widget) { widget.onPopupMenu = [this] { showLearnMenu(); }; }
 
     void write (int raw);
+    // Bracket a drag so the host records it as one gesture (no-op unless the
+    // control is on a DAW automation slot).
+    void beginGesture();
+    void endGesture();
     int read() const { return session.getParam (def); }
 
     ParamTarget& session;
@@ -90,6 +94,8 @@ private:
     int automationSlot() const;
     MidiLearn* learn = nullptr;
     AutomationLink* automation = nullptr;
+    int gestureScope = 0;
+    std::string gestureId; // non-empty while a drag gesture is open
     juce::String baseTooltip;
 };
 

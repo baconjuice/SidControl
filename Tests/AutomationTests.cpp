@@ -71,6 +71,55 @@ int main()
     CHECK (automation.slotFor (0, "lfo3.rate") == -1);
     CHECK (params[4]->getName (100) == "5: (unused)");
 
+    // Knob drags reach the host as gestures on the control's slot.
+    {
+        struct GestureCount : juce::AudioProcessorParameter::Listener
+        {
+            int begins = 0, ends = 0;
+            void parameterValueChanged (int, float) override {}
+            void parameterGestureChanged (int, bool starting) override { ++(starting ? begins : ends); }
+        } count;
+        params[3]->addListener (&count);
+        automation.beginGesture (0, "v1.pw");
+        automation.endGesture (0, "v1.pw");
+        automation.beginGesture (0, "lfo3.rate"); // not on a slot: no gesture
+        automation.endGesture (0, "lfo3.rate");
+        params[3]->removeListener (&count);
+        CHECK (count.begins == 1 && count.ends == 1);
+    }
+
+    // Linked edits copy the parameter value, not the changed byte.
+    {
+        // Different pulsewidths whose high nibbles differ, then edit OSC1
+        // with OSC 1-3 linked so only its low byte changes.
+        session.setParam (L.get ("v1.pw"), 0x100);
+        session.setParam (L.get ("v2.pw"), 0x300);
+        session.setParam (L.get ("v3.pw"), 0x500);
+        session.setParam (L.get ("v4.pw"), 0x700);
+        session.setParam (L.get ("v1.pw"), 0x1a0, sid::sysex::wopt::Voices);
+        CHECK (session.getParam (L.get ("v2.pw")) == 0x1a0);
+        CHECK (session.getParam (L.get ("v3.pw")) == 0x1a0);
+        CHECK (session.getParam (L.get ("v4.pw")) == 0x700); // right SID untouched
+
+        // Attack and Decay share a byte: a linked Attack edit keeps each
+        // voice's own Decay.
+        session.setParam (L.get ("v1.decay"), 3);
+        session.setParam (L.get ("v2.decay"), 9);
+        session.setParam (L.get ("v1.attack"), 12, sid::sysex::wopt::Voices);
+        CHECK (session.getParam (L.get ("v2.attack")) == 12);
+        CHECK (session.getParam (L.get ("v2.decay")) == 9);
+        CHECK (session.getParam (L.get ("v1.decay")) == 3);
+
+        // Edit one voice: nothing else moves.
+        session.setParam (L.get ("v1.pw"), 0x800);
+        CHECK (session.getParam (L.get ("v2.pw")) == 0x1a0);
+
+        // L/R link pairs OSC1 with OSC4 only.
+        session.setParam (L.get ("v1.pw"), 0x234, sid::sysex::wopt::LeftRight);
+        CHECK (session.getParam (L.get ("v4.pw")) == 0x234);
+        CHECK (session.getParam (L.get ("v2.pw")) == 0x1a0);
+    }
+
     // Engine switch renames the slots.
     session.loadIntoEditor (sid::Patch::makeInit (sid::Engine::Drum));
     CHECK (params[3]->getName (100).contains ("Tune"));

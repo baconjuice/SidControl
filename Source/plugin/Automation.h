@@ -33,6 +33,8 @@ public:
     void assign (int slot, int engine, const std::string& paramId, uint8_t writeOption) override;
     void unassign (int engine, const std::string& paramId) override;
     void resetToDefaults (int engine) override;
+    void beginGesture (int engine, const std::string& paramId) override;
+    void endGesture (int engine, const std::string& paramId) override;
 
     juce::ValueTree toValueTree() const;
     void fromValueTree (const juce::ValueTree& v);

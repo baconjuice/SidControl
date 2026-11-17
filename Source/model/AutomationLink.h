@@ -19,6 +19,11 @@ public:
     virtual void assign (int slot, int engine, const std::string& paramId, uint8_t writeOption) = 0;
     virtual void unassign (int engine, const std::string& paramId) = 0;
     virtual void resetToDefaults (int engine) = 0;
+    // A knob drag on an assigned control: the host sees one gesture (it can
+    // pause a playing automation lane, records cleanly, one undo step)
+    // instead of a stream of separate edits.
+    virtual void beginGesture (int engine, const std::string& paramId) = 0;
+    virtual void endGesture (int engine, const std::string& paramId) = 0;
 
     struct Listener
     {
